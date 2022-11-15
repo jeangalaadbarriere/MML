@@ -1,0 +1,42 @@
+---
+title: "Macro ML"
+author: "Jean-Galaad BARRIERE"
+date: "05/11/2022"
+output: pdf_document
+---
+
+```{r}
+#########   Librairies
+library(dplyr)
+
+##############
+file <- "data/2020-11.csv"
+#file <- "C:\\Users\\jean-\\OneDrive - Ecole Polytechnique\\4A ENSAE\\cours\\Macroeconometry and ML\\2020-11.csv"
+
+data0 <- read.csv(file = file)
+
+
+
+#On ne garde que les données d'après 1960
+x <- data0$sasdate
+data1 <- data0[(x!="Transform:" & nchar(x)>2 & as.integer(substr(x, nchar(x)-3, nchar(x)))>1959),]
+y<-data1[,1]
+
+varnames <- data.frame("FRED_ticker"=colnames(data1)[-1])
+write.csv(varnames, "varnames.csv", row.names = F)
+
+
+##### Sur ces données, on enlève les séries inutiles
+# on importe le csv avec les idnications sur les variables
+df <- read.csv("data/variables.csv",sep=";")
+df <- filter(df,Inclusion==1)
+var <- df$FRED_ticker
+
+#on garde la date
+var <- c("sasdate", var)
+
+
+data <- data1[var]
+data
+```
+
