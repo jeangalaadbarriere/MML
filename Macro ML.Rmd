@@ -48,7 +48,10 @@ var_names <- colnames(data)
 for(i in 2:length(var_names)){ #on exclut la 1ère col (date)
   variable <- var_names[[i]]
   transfo <- df$Transformation[df$FRED_ticker==variable]
+<<<<<<< HEAD
+=======
   print(transfo)
+>>>>>>> d4fe02aa383892543b502d80ae6641b8b18f9ba1
   if(!is.null(transfo)){
     if(transfo=="Log"){
       data[,i]<-log(data[,i])
@@ -80,7 +83,11 @@ library(FactoMineR)
 
 data <- readRDS("data/FRED_data.rds")
 data0 <- select(data, -1) # on enlève la date
+<<<<<<< HEAD
+#data0[is.na(data0)]<-1 # à voir comment on les traite
+=======
 data0[is.na(data0)]<-1 # à voir comment on les traite
+>>>>>>> d4fe02aa383892543b502d80ae6641b8b18f9ba1
 sum(is.na(data0))
 
 pca <- PCA(data0, ncp=9)
@@ -88,10 +95,30 @@ View(pca$var$coord)
 summary(pca)
 ```
 
+<<<<<<< HEAD
+
+
+## Sparse PCA
+
+Essayons avec le même package que les auteurs :
+
+J'ai ajusté à la main le paramètre sumabsv pour me rapproche des 108 nonzero weights.
+
+On a un résultat qui ressemble fortement à celui de l'article!
+
+```{r}
+library(PMA)
+spca <- SPC(data0,sumabsv = 3, K=9)
+View(spca$v)
+weights <- spca$v
+row.names(weights)<- colnames(data0)
+sum(weights!=0)
+=======
 ## Sparse PCA
 ```{r}
 library(sparsepca)
 spca <- robspca(data0, k=9)
 View(spca$loadings)
+>>>>>>> d4fe02aa383892543b502d80ae6641b8b18f9ba1
 ```
 
