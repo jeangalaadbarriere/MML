@@ -17,9 +17,9 @@ data0 <- read.csv(file = file)
 
 
 
-#On ne garde que les données d'après 1960
+#On ne garde que les données d'après 1960 # non car calcul de différence
 x <- data0$sasdate
-data1 <- data0[(x!="Transform:" & nchar(x)>2 & as.integer(substr(x, nchar(x)-3, nchar(x)))>1959),]
+data1 <- data0[(x!="Transform:" & nchar(x)>2),]
 y<-data1[,1]
 
 varnames <- data.frame("FRED_ticker"=colnames(data1)[-1])
@@ -38,5 +38,35 @@ var <- c("sasdate", var)
 
 data <- data1[var]
 data
+
+
+```
+
+```{r}
+### Transformations des séries
+var_names <- colnames(data)
+for(i in 2:length(var_names)){ #on exclut la 1ère col (date)
+  variable <- var_names[[i]]
+  transfo <- df$Transformation[df$FRED_ticker==variable]
+  print(transfo)
+  if(!is.null(transfo)){
+    if(transfo=="Log"){
+      data[,i]<-log(data[,i])
+    }
+    if(transfo=="Difference"){
+      data[,i]<-c(NA, diff(data[,i])) #une case de moins si on prend la diff
+    }
+    if(transfo=="Log growth"){
+      tmp <- data[,i]
+      tmp <- tmp/lag(tmp)
+      tmp<-log(tmp)
+      data[,i]<-c(tmp) #une case de moins si on prend la diff
+    }
+  }
+}
+
+## Intervalle temporel
+data$sasdate<-as.Date(data$sasdate, format = "%m/%d/%Y") # conversion en date
+data <- filter(data, sasdate>="1960-01-01" & sasdate<"2020-01-01")
 ```
 
