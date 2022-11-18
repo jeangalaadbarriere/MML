@@ -68,5 +68,30 @@ for(i in 2:length(var_names)){ #on exclut la 1ère col (date)
 ## Intervalle temporel
 data$sasdate<-as.Date(data$sasdate, format = "%m/%d/%Y") # conversion en date
 data <- filter(data, sasdate>="1960-01-01" & sasdate<"2020-01-01")
+
+### Enregistrement des données
+saveRDS(data, "data/FRED_data.rds")
+```
+
+## PCA
+
+```{r}
+library(FactoMineR)
+
+data <- readRDS("data/FRED_data.rds")
+data0 <- select(data, -1) # on enlève la date
+data0[is.na(data0)]<-1 # à voir comment on les traite
+sum(is.na(data0))
+
+pca <- PCA(data0, ncp=9)
+View(pca$var$coord)
+summary(pca)
+```
+
+## Sparse PCA
+```{r}
+library(sparsepca)
+spca <- robspca(data0, k=9)
+View(spca$loadings)
 ```
 
