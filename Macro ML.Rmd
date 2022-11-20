@@ -78,9 +78,8 @@ saveRDS(data, "data/FRED_data.rds")
 library(FactoMineR)
 
 data <- readRDS("data/FRED_data.rds")
-data0 <- select(data, -1) # on enlève la date
+data0 <- dplyr::select(data, -1) # on enlève la date
 #data0[is.na(data0)]<-1 # à voir comment on les traite
-data0[is.na(data0)]<-1 # à voir comment on les traite
 sum(is.na(data0))
 
 pca <- PCA(data0, ncp=9)
@@ -94,12 +93,16 @@ summary(pca)
 
 Essayons avec le même package que les auteurs :
 
+Attention : il faut standardiser les variables (pour avoir variance unitaire).
+
 J'ai ajusté à la main le paramètre sumabsv pour me rapproche des 108 nonzero weights.
 
 On a un résultat qui ressemble fortement à celui de l'article!
 
 ```{r}
 library(PMA)
+data0<-as.matrix(data0)
+data0<-scale(data0) # on standardise toutes les variables
 spca <- SPC(data0,sumabsv = 3, K=9)
 View(spca$v)
 weights <- spca$v
@@ -107,3 +110,33 @@ row.names(weights)<- colnames(data0)
 sum(weights!=0)
 
 ```
+
+## Autoregression
+
+
+### Autorégression sur la PCA
+``pca$ind$coord`` contient les coordonnées pour chaque observation dans l'espace des 9 PC.
+
+
+```{r}
+library(vars)
+View(pca$ind$coord)
+data_pca <- pca$ind$coord
+row.names(data_pca) <- data$date
+ar1 <- VAR(data_pca, p=1)
+summary(ar1)
+```
+La matrice de corrélation des résidus ressemble beaucoup à celle de l'article (table 4).
+
+### Autorégression sur la Sparse PCA
+``spca$u`` contient les coordonnées pour chaque observation dans l'espace des 9 SPC.
+
+```{r}
+View(spca$u)
+data_spca <- spca$u
+row.names(data_spca) <- data$date
+ar1 <- VAR(data_spca, p=1)
+summary(ar1)
+```
+
+Encore une fois, on n'est pas trop loin des résultats de l'article! cf table 4

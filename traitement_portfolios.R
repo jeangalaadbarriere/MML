@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 ####  Traitement des données de portfolios  ####
 
 ## Liste des fichiers
@@ -42,7 +41,7 @@ for(f in list_files){
   saveRDS(data,paste0("second_treatment/", f, ".rds"))
 
 }
-=======
+
 ####  Traitement des données de portfolios  ####
 
 ## Liste des fichiers
@@ -86,4 +85,4 @@ for(f in list_files){
   saveRDS(data,paste0("second_treatment/", f, ".rds"))
 
 }
->>>>>>> fb8a1d468420ad56e6a9efb7ead7f0fbda66b6ee
+
