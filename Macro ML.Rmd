@@ -15,8 +15,6 @@ file <- "data/2020-11.csv"
 
 data0 <- read.csv(file = file)
 
-
-
 #On ne garde que les données d'après 1960 # non car calcul de différence
 x <- data0$sasdate
 data1 <- data0[(x!="Transform:" & nchar(x)>2),]
@@ -24,7 +22,6 @@ y<-data1[,1]
 
 varnames <- data.frame("FRED_ticker"=colnames(data1)[-1])
 write.csv(varnames, "varnames.csv", row.names = F)
-
 
 ##### Sur ces données, on enlève les séries inutiles
 # on importe le csv avec les idnications sur les variables
@@ -35,11 +32,8 @@ var <- df$FRED_ticker
 #on garde la date
 var <- c("sasdate", var)
 
-
 data <- data1[var]
 data
-
-
 ```
 
 ```{r}
@@ -108,7 +102,6 @@ View(spca$v)
 weights <- spca$v
 row.names(weights)<- colnames(data0)
 sum(weights!=0)
-
 ```
 
 ## Autoregression
@@ -140,3 +133,89 @@ summary(ar1)
 ```
 
 Encore une fois, on n'est pas trop loin des résultats de l'article! cf table 4
+
+
+
+
+### Estimation du risk premia
+avec la méthodologie de Giglio et Xiu, three-pass
+
+1. PCA to demand excess return to the N test to estimate ksi
+2. Run the time series regression for ksi => estimate beta
+Run cross-sectionnal regression of r over beta to estimate gamma
+3. Run time series regression on g on ksi to estimate theta
+
+res is the product btw gamma and theta
+gt: observables factors
+rt: excess return
+
+
+1- PCA to demand excess return to the N test to estimate ksi
+
+A- Importons la première série de 5 portofolios pour obtenir les return on assets
+
+```{r}
+R <- readRDS("data/data three-steps/R_whithout_risk_free.rds")
+```
+
+B- On crée les excess return en enlevant les risk-free
+
+Le logiciel utilise les risques free rates de CRSP
+Or, c'est payant et ils n'offrent pas de free trial
+Je vais utiliser les données de FRED ST Louis à la place en considérant que:
+risk-free rates = 3-Month Treasury Bill Secondary Market Rate, Discount Basis #(TB3MS)
+https://fred.stlouisfed.org/series/TB3MS
+```{r}
+data_rf <- read.csv(file = "data/TB3MS.csv")
+data_rf <- dplyr::select(data_rf, -1) # on enlève la date
+for (i in c(1:dim(R)[1])){
+  R[i,] <- R[i,] - data_rf[,1]
+}
+#R <- t(scale(t(R))) #on standardise #FLAVIEN
+```
+
+
+C- On exprime ces excess rates dans la base de la PCA
+```{r}
+library(FactoMineR)
+T <- dim(R)[2]
+N <- dim(R)[1]
+pca <- PCA((t(R) %*% R)/(T*N), ncp=15) #l'article ne garde que 15 PCs
+V <- sqrt(T)*t(pca[["var"]][["coord"]]) #a matrix made of the ksi vectors
+```
+
+2. Run the time series regression for ksi => estimate beta
+Run cross-sectionnal regression of r over beta => estimate gamma
+
+```{r}
+library(matlib)
+beta <- (1/T)*as.matrix(R)%*%t(V)
+r_barre_mean <- as.matrix(rowMeans(R)) #average return
+gamma <- inv(t(beta)%*%beta) %*% t(beta) %*% r_barre_mean #OLS
+```
+
+3. Run time series regression on g on ksi to estimate theta
+
+On a besoin de la matrice G_barre des observable factors, de dim d*T.
+C'est la matrice des 120=d données de FRED_MD.
+
+```{r}
+G_barre <- readRDS("data/FRED_data.rds")
+l <- G_barre$sasdate
+for (i in c(1:dim(G_barre)[1])){
+  if (l[i] == "1963-07-01"){start <- i}
+  if (l[i] == "2019-12-01"){end <- i}
+}
+G_barre <- dplyr::slice(G_barre, start:end)
+G_barre <- t(dplyr::select(G_barre, -1)) #on enlève la date et transpose
+
+eta <- G_barre %*% t(V) %*% inv(V %*% t(V))
+G <- eta %*% V
+gamma_g <- eta %*% gamma
+```
+
+
+```{r}
+w <- V %*% t(V) #ce devrait être l'identité d'après l'article
+```
+
