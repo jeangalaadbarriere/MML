@@ -1,0 +1,329 @@
+---
+title: "extract data"
+author: "Jean-Galaad BARRIERE"
+date: "2022-12-02"
+output: html_document
+---
+données:
+July 1  1926 - october 31 2022
+We want only:
+07 1963 - 12 2019
+-we remove at the end the last 22
+the, we know we just want 678 obs so we remove so that it works
+
+
+```{r}
+pf_names <- read.csv("portofolios_names.csv", header=FALSE)
+file <- pf_names[1,1]
+R <- read.table(file = file, header = FALSE, sep = "", dec = ".")
+R <- dplyr::select(R, 1) #on ne garde que la colonne date
+colnames(R) <- c("date")
+pf_ratio <- c("portofolios/Portfolios_Formed_on_E-P.txt", "portofolios/Portfolios_Formed_on_D-P.txt","portofolios/Portfolios_Formed_on_CF-P.txt")
+to_remove <- c("X.._0","Lo_30","Med_40","Hi_30","Lo_20","Qnt_2","Qnt_3","Qnt_4","Hi_20")
+
+for (file in pf_names[,1]){
+  if (file == "portofolios/30_Industry_Portfolios.txt"){
+    data <- read.table(file = file, header = TRUE, sep = "", dec = ".")
+  } 
+  else{
+    if (file %in% pf_ratio){
+      data <- read.table(file = file, header = TRUE, sep = "", dec = ".")
+      data <- dplyr::select(data, -to_remove)
+    } 
+    else {
+      data <- read.table(file = file, header = FALSE, sep = "", dec = ".")
+      if (dim(data)[2]==26){
+        colnames(data) <- c('date', '1-1', '1-2', '1-3', '1-4', '1-5', '2-1', '2-2', '2-3', '2-4', '2-5', '3-1', '3-2', '3-3', '3-4', '3-5', '4-1', '4-2', '4-3', '4-4', '4-5', '5-1', '5-2', '5-3', '5-4', '5-5')
+      }
+      if (dim(data)[2]==36){
+        colnames(data) <- c('date','1-1', '1-2', '1-3', '1-4', '1-5','1-6', '2-1', '2-2', '2-3', '2-4', '2-5','2-6', '3-1', '3-2', '3-3', '3-4', '3-5', '3-6','4-1', '4-2', '4-3', '4-4', '4-5', '4-6', '5-1', '5-2', '5-3', '5-4', '5-5','5-6', '6-1', '6-2', '6-3', '6-4', '6-5') #pas bon!!
+      }
+    }
+  }
+  R <- dplyr::inner_join(R,data,by="date")
+}
+R <- t(dplyr::select(R, -1)) #on enlève la date et on transpose
+
+saveRDS(R, file="R_whithout_risk_free.rds")
+```
+
+
+
+
+
+
+
+```{r}
+file <- "25_Portfolios_5x5.txt"
+data0 <- read.csv(file = file)
+
+s <- dim(data0)[1]
+a <- s-22
+data1 <- data0[c((a-678):a),]
+data2 <- matrix(0,nrow=678,ncol=26)
+for (i in c(1:678)){
+  l <- data1[i]
+  for (j in c(1:26)){
+    data2[i,j] <- as.numeric(substr(l,((j*9 - 8)), (j*9 - 2)))
+  }
+}
+df <- as.data.frame(data2)
+colnames(df) <- c('rt', '1-1', '1-2', '1-3', '1-4', '1-5', '2-1', '2-2', '2-3', '2-4', '2-5', '3-1', '3-2', '3-3', '3-4', '3-5', '4-1', '4-2', '4-3', '4-4', '4-5', '5-1', '5-2', '5-3', '5-4', '5-5')
+#data2[data2==-99.99] aucune valeur abherrante
+
+saveRDS(df, file="df-size_book_tot_market.rds")
+```
+
+```{r}
+rm(data0)
+rm(data1)
+rm(data2)
+rm(df)
+rm(file)
+file <- "25_Portfolios_ME_OP_5x5.txt"
+data0 <- read.csv(file = file)
+
+s <- dim(data0)[1]
+a <- s-22
+data1 <- data0[c((a-678):a),]
+data2 <- matrix(0,nrow=678,ncol=26)
+for (i in c(1:678)){
+  l <- data1[i]
+  for (j in c(1:26)){
+    data2[i,j] <- as.numeric(substr(l,((j*9 - 8)), (j*9 - 2)))
+  }
+}
+df <- as.data.frame(data2)
+colnames(df) <- c('rt', '1-1', '1-2', '1-3', '1-4', '1-5', '2-1', '2-2', '2-3', '2-4', '2-5', '3-1', '3-2', '3-3', '3-4', '3-5', '4-1', '4-2', '4-3', '4-4', '4-5', '5-1', '5-2', '5-3', '5-4', '5-5')
+#data2[data2==-99.99] aucune valeur abherrante
+
+saveRDS(df, file="df-size_operating_profitability.rds")
+```
+
+```{r}
+rm(data0)
+rm(data1)
+rm(data2)
+rm(df)
+rm(file)
+file <- "25_Portfolios_ME_INV_5x5.txt"
+data0 <- read.csv(file = file)
+
+s <- dim(data0)[1]
+a <- s-22
+data1 <- data0[c((a-678):a),]
+data2 <- matrix(0,nrow=678,ncol=26)
+for (i in c(1:678)){
+  l <- data1[i]
+  for (j in c(1:26)){
+    data2[i,j] <- as.numeric(substr(l,((j*9 - 8)), (j*9 - 2)))
+  }
+}
+df <- as.data.frame(data2)
+colnames(df) <- c('rt', '1-1', '1-2', '1-3', '1-4', '1-5', '2-1', '2-2', '2-3', '2-4', '2-5', '3-1', '3-2', '3-3', '3-4', '3-5', '4-1', '4-2', '4-3', '4-4', '4-5', '5-1', '5-2', '5-3', '5-4', '5-5')
+#data2[data2==-99.99] aucune valeur abherrante
+
+saveRDS(df, file="df-size_investment.rds")
+```
+
+```{r}
+rm(data0)
+rm(data1)
+rm(data2)
+rm(df)
+rm(file)
+file <- "25_Portfolios_ME_Prior_12_2.txt"
+data0 <- read.csv(file = file)
+
+s <- dim(data0)[1]
+a <- s-22
+data1 <- data0[c((a-678):a),]
+data2 <- matrix(0,nrow=678,ncol=26)
+for (i in c(1:678)){
+  l <- data1[i]
+  for (j in c(1:26)){
+    data2[i,j] <- as.numeric(substr(l,((j*9 - 8)), (j*9 - 2)))
+  }
+}
+df <- as.data.frame(data2)
+colnames(df) <- c('rt', '1-1', '1-2', '1-3', '1-4', '1-5', '2-1', '2-2', '2-3', '2-4', '2-5', '3-1', '3-2', '3-3', '3-4', '3-5', '4-1', '4-2', '4-3', '4-4', '4-5', '5-1', '5-2', '5-3', '5-4', '5-5')
+#data2[data2==-99.99] aucune valeur abherrante
+
+saveRDS(df, file="df-size_momentum.rds")
+```
+
+```{r}
+rm(data0)
+rm(data1)
+rm(data2)
+rm(df)
+rm(file)
+file <- "25_Portfolios_ME_Prior_1_0.txt"
+data0 <- read.csv(file = file)
+
+s <- dim(data0)[1]
+a <- s-22
+data1 <- data0[c((a-678):a),]
+data2 <- matrix(0,nrow=678,ncol=26)
+for (i in c(1:678)){
+  l <- data1[i]
+  for (j in c(1:26)){
+    data2[i,j] <- as.numeric(substr(l,((j*9 - 8)), (j*9 - 2)))
+  }
+}
+df <- as.data.frame(data2)
+colnames(df) <- c('rt', '1-1', '1-2', '1-3', '1-4', '1-5', '2-1', '2-2', '2-3', '2-4', '2-5', '3-1', '3-2', '3-3', '3-4', '3-5', '4-1', '4-2', '4-3', '4-4', '4-5', '5-1', '5-2', '5-3', '5-4', '5-5')
+#data2[data2==-99.99] aucune valeur abherrante
+
+saveRDS(df, file="df-size_short-term_reversal.rds")
+```
+
+```{r}
+rm(data0)
+rm(data1)
+rm(data2)
+rm(df)
+rm(file)
+file <- "25_Portfolios_ME_Prior_60_13.txt"
+data0 <- read.csv(file = file)
+
+s <- dim(data0)[1]
+a <- s-22
+data1 <- data0[c((a-678):a),]
+data2 <- matrix(0,nrow=678,ncol=26)
+for (i in c(1:678)){
+  l <- data1[i]
+  for (j in c(1:26)){
+    data2[i,j] <- as.numeric(substr(l,((j*9 - 8)), (j*9 - 2)))
+  }
+}
+df <- as.data.frame(data2)
+colnames(df) <- c('rt', '1-1', '1-2', '1-3', '1-4', '1-5', '2-1', '2-2', '2-3', '2-4', '2-5', '3-1', '3-2', '3-3', '3-4', '3-5', '4-1', '4-2', '4-3', '4-4', '4-5', '5-1', '5-2', '5-3', '5-4', '5-5')
+#data2[data2==-99.99] aucune valeur abherrante
+
+saveRDS(df, file="df-size_long-term_reversal.rds")
+```
+
+
+```{r}
+rm(data0)
+rm(data1)
+rm(data2)
+rm(df)
+rm(file)
+file <- "Portfolios_Formed_on_E-P.txt"
+data0 <- read.csv(file = file, header=FALSE)
+s <- dim(data0)[1]
+a <- s-22
+data1 <- data0[c((a-678):a),]
+data2 <- matrix(0,nrow=678,ncol=20)
+for (i in c(1:678)){
+  l <- as.list(strsplit(data1[i], " ")[[1]])
+  data2[i,1] <- as.numeric(l[[1]])
+  compt <- 2
+  for (j in c(2:length(l))){
+    v <- as.numeric(l[[j]])
+    if (is.na(v)==FALSE){
+      data2[i,compt] <- v
+      compt <- compt + 1
+    }
+  }
+}
+df <- as.data.frame(data2)
+colnames(df) <- c('rt', '<0','lo30','mid40', 'hi30', 'q1', 'q2', 'q3', 'q4', 'q5', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8', 'd9', 'd10')
+#data2[data2==-99.99] aucune valeur abherrante
+
+saveRDS(df, file="df-earning-to-price_ratio.rds")
+```
+
+
+```{r}
+rm(data0)
+rm(data1)
+rm(data2)
+rm(df)
+rm(file)
+file <- "Portfolios_Formed_on_CF-P.txt"
+data0 <- read.csv(file = file, header=FALSE)
+s <- dim(data0)[1]
+a <- s-22
+data1 <- data0[c((a-678):a),]
+data2 <- matrix(0,nrow=678,ncol=20)
+for (i in c(1:678)){
+  l <- as.list(strsplit(data1[i], " ")[[1]])
+  data2[i,1] <- as.numeric(l[[1]])
+  compt <- 2
+  for (j in c(2:length(l))){
+    v <- as.numeric(l[[j]])
+    if (is.na(v)==FALSE){
+      data2[i,compt] <- v
+      compt <- compt + 1
+    }
+  }
+}
+df <- as.data.frame(data2)
+colnames(df) <- c('rt', '<0','lo30','mid40', 'hi30', 'q1', 'q2', 'q3', 'q4', 'q5', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8', 'd9', 'd10')
+#data2[data2==-99.99] aucune valeur abherrante
+
+saveRDS(df, file="df-cash_flow-to-price_ratio.rds")
+```
+
+```{r}
+rm(data0)
+rm(data1)
+rm(data2)
+rm(df)
+rm(file)
+file <- "Portfolios_Formed_on_D-P.txt"
+data0 <- read.csv(file = file, header=FALSE)
+s <- dim(data0)[1]
+a <- s-22
+data1 <- data0[c((a-678):a),]
+data2 <- matrix(0,nrow=678,ncol=20)
+for (i in c(1:678)){
+  l <- as.list(strsplit(data1[i], " ")[[1]])
+  data2[i,1] <- as.numeric(l[[1]])
+  compt <- 2
+  for (j in c(2:length(l))){
+    v <- as.numeric(l[[j]])
+    if (is.na(v)==FALSE){
+      data2[i,compt] <- v
+      compt <- compt + 1
+    }
+  }
+}
+df <- as.data.frame(data2)
+colnames(df) <- c('rt', '<0','lo30','mid40', 'hi30', 'q1', 'q2', 'q3', 'q4', 'q5', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8', 'd9', 'd10')
+#data2[data2==-99.99] aucune valeur abherrante
+
+saveRDS(df, file="df-dividende_price.rds")
+```
+
+```{r}
+rm(data0)
+rm(data1)
+rm(data2)
+rm(df)
+rm(file)
+file <- "25_Portfolios_ME_AC_5x5.txt"
+data0 <- read.csv(file = file)
+
+s <- dim(data0)[1]
+a <- s-22
+data1 <- data0[c((a-678):a),]
+data2 <- matrix(0,nrow=678,ncol=26)
+for (i in c(1:678)){
+  l <- data1[i]
+  for (j in c(1:26)){
+    data2[i,j] <- as.numeric(substr(l,((j*9 - 8)), (j*9 - 2)))
+  }
+}
+df <- as.data.frame(data2)
+colnames(df) <- c('rt', '1-1', '1-2', '1-3', '1-4', '1-5', '2-1', '2-2', '2-3', '2-4', '2-5', '3-1', '3-2', '3-3', '3-4', '3-5', '4-1', '4-2', '4-3', '4-4', '4-5', '5-1', '5-2', '5-3', '5-4', '5-5')
+#data2[data2==-99.99] aucune valeur abherrante
+
+saveRDS(df, file="df-dividende_price.rds")
+```
+
+
+
