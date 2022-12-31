@@ -37,6 +37,17 @@ technique used here is **sparse Principal Component Analysis** (PCA). As
 we will see below, the main advantage of sparse PCA over PCA lies in the
 interpretability of the factors.
 
+Once the principal components are extracted, we use them as factors in
+asset pricing models. The goal is to determine whether those factors are
+relevant and whether they generate significant risk premia. The
+estimation of the of the risk premia uses the **three-pass methodology**
+developed by Giglio and Xiu. Their methodology is designed to compute
+unbiased risk premia estimates under omission of relevant risk factors
+and measurement error. The concern about factor omission is indeed well
+founded. If we assume that the asset excess returns are only determined
+by the macro factors derived from the PCA, we might omit other relevant
+factors. The three-pass methodology solves this problem.
+
 [reste de l'intro]
 
 # PCA and Sparse PCA
@@ -131,15 +142,12 @@ pca <- PCA(data0, ncp=9, graph=F)
 table1 <- pca$eig
 ```
 
-
 ```{r}
 kable(table1[1:9,], caption = "First 9 components of the PCA")
 ```
 
-
-
-The first nine conventional PCs collectively explain `r table1[9,3]`%
-of the total variation in the macroeconomic variables.
+The first nine conventional PCs collectively explain `r table1[9,3]`% of
+the total variation in the macroeconomic variables.
 
 The outcome of our PCA is somewhat different from the results presented
 in the article. Indeed, the weights of the components are different.
@@ -150,7 +158,10 @@ data and in the original article. Despite these differences, we are
 reassured by the fact that in the original article, the first nine PCs
 collectively explain 57% of the total variation.
 
-We plot the principal components that we extracted from the 120 FRED-MD macroeconomic variables, as the authors do in **Figure 1** of their article.
+We plot the principal components that we extracted from the 120 FRED-MD
+macroeconomic variables, as the authors do in **Figure 1** of their
+article.
+
 ```{r, fig.height=7, fig.cap="Conventional principal components"}
 pca_ts <- ts(data=pca$ind$coord, start = c(1960,1), frequency=12)
 par(mfrow = c(3, 3), mar = c(5.1, 4.1, 4.1, 2.1))
@@ -161,10 +172,6 @@ for(i in 1:9){
 }
 
 ```
-
-
-
-
 
 ## Sparse PCA
 
@@ -205,7 +212,6 @@ active_weights_df <- data.frame(Sparse_Component = 1:9,
 kable(active_weights_df)
 ```
 
-
 The result of our sparse PCA is quite satisfactory, insofar as they are
 very similar to those represented in the article. As in the article, the
 nine components of the PCA explain 46% of the total variation in the 120
@@ -217,7 +223,6 @@ active weights of the ninth component diverge too much from those of the
 original article. In our results, it is difficult to interpret this
 component as an index for credit ; we therefore keep the name "SPC 9".
 
-
 ```{r, fig.height=7, fig.cap="Sparse principal components"}
 spca_ts <- ts(data=spca$u, start = c(1960,1), frequency=12)
 par(mfrow = c(3, 3), mar = c(5.1, 4.1, 4.1, 2.1))
@@ -228,11 +233,12 @@ for(i in 1:9){
 }
 
 ```
-Even though our sparse components have similar interpretations as those derived by the authors, our plots are very different from those presented in **Figure 2** of the article
+
+Even though our sparse components have similar interpretations as those
+derived by the authors, our plots are very different from those
+presented in **Figure 2** of the article
 
 ## Innovation correlations
-
-
 
 ### Autorégression sur la PCA
 
@@ -269,10 +275,12 @@ table 4
 
 ## Risk premia estimates
 
-We now turn to the estimation of the risk premia of the sparse macro factors. The objective is to determine whether some of the macro factors generate some significant risk premia.
+We now turn to the estimation of the risk premia of the sparse macro
+factors. The objective is to determine whether some of the macro factors
+generate some significant risk premia.
 
-We import the data on portfolio returns and keep the same time period as the authors (1963:07 to 2019:12).
-
+We import the data on portfolio returns and keep the same time period as
+the authors (1963:07 to 2019:12).
 
 ```{r}
 R <- readRDS("data/portfolios.rds")
@@ -281,8 +289,11 @@ dates <- R$date
 R<-dplyr::select(R,-1)
 ```
 
-We need to compute the excess returns of each portfolios. This requires data on the risk-free rate at every period in time. The authors use the CRSP risk-free return. However, as these data are not freely available, we replace the risk-free rate by TB3MS variable from FREDMD (3-Month Treasury
-Bill Secondary Market Rate, Discount Basis).
+We need to compute the excess returns of each portfolios. This requires
+data on the risk-free rate at every period in time. The authors use the
+CRSP risk-free return. However, as these data are not freely available,
+we replace the risk-free rate by TB3MS variable from FREDMD (3-Month
+Treasury Bill Secondary Market Rate, Discount Basis).
 
 ```{r}
 data_rf <- read.csv(file = "data/TB3MS.csv")
@@ -299,7 +310,8 @@ R_d <- R-t(as.matrix(colMeans(R))) # the result is != 0 due to approx errors
 
 ```
 
-We run a PCA of the excess returns of our portfolios, to estimated the rotated fundamental factors (denoted `ksi`)
+We run a PCA of the excess returns of our portfolios, to estimated the
+rotated fundamental factors (denoted `ksi`)
 
 ```{r}
 t <- nrow(R_d)
@@ -324,7 +336,9 @@ summary(lm1)
 # R² proche de l'article avec intercept, mais erronné sans intercept (calcul du R² dans un modèle sans intercept ne fonctionne pas)
 
 ```
-The last step is to run a time-series regression of the observed factors on the rotated fundamental factors.
+
+The last step is to run a time-series regression of the observed factors
+on the rotated fundamental factors.
 
 ```{r}
 # we restrict the observed factors to the good time period
@@ -360,3 +374,63 @@ eta_spca <- G_spca %*% t(V) %*% solve(V %*% t(V))
 
 gamma_g_spca <- eta_spca %*% gamma
 ```
+
+# Biases without the three-pass methodology
+
+***What happens if we do not use the 3-pass methodology?***
+
+The authors have used the three-pass methodology due to concerns about
+potential omitted factors bias. We now go beyond the scope of the
+original article as we study whether there is evidence of such biases.
+To achieve this, we estimate the risk premia with a simple two-pass
+methodology, and then compare our results to the outcome of the
+three-pass methodology.
+
+Let us therefore assume that the true model for asset returns only
+depends on our macro factors. If this assumption is true, then we can
+derive unbiased estimates of the risk premia with a two-pass
+methodology. This methodology consists in two steps :
+
+1.  Time series regression of the demeaned asset excess returns on the
+    innovations to the macro factors, to estimate the risk exposures of
+    each asset ($\beta$)
+
+2.  Cross-sectional regression of the average returns of each asset on
+    the asset\' risk exposures
+
+We run this estimation on the macro factors obtained with the
+conventional PCA, and then on the sparse macro factors.
+
+#### Conventional PCA
+
+```{r}
+R_1 <- t(R)
+R_d_1 <- ts(t(R_d))
+v_t <- ts(residuals(ar_pca)[indices_dates[-1],])
+
+lm_pca <- tslm(R_d_1~0+v_t)
+beta <- t(lm_pca$coefficients)
+
+R_bar <- rowMeans(R_1)
+lm_pca_2 <- lm(R_bar~0+beta)
+summary(lm_pca_2)
+```
+
+#### Sparse PCA
+
+```{r}
+R_2 <- t(R)
+R_d_2 <- ts(t(R_d))
+v_t_2 <- ts(residuals(ar_spca)[indices_dates[-1],])
+
+lm_spca <- tslm(R_d_2~0+v_t_2)
+beta_s <- t(lm_spca$coefficients)
+
+R_bar <- rowMeans(R_2)
+lm_spca_2 <- lm(R_bar~0+beta_s)
+summary(lm_spca_2)
+```
+
+Even though those estimates are biased, we find that the sparse
+components 1 and 4 (yield and housing) generate significant risk premia.
+This result is consistent with the result of the original article.
