@@ -377,6 +377,56 @@ df_spca <- data.frame(Factor = component_names,
 kable(df_spca, caption = "Estimators of the risk premia for the sparse PCA")
 ```
 
+
+
+## Three-pass methodology, with notations of Zhou-Rapach
+
+J'ai essayé de répliquer le résultat en utilisant les notations de notre article (Zhou-Rapach).
+
+1- Apply conventional PCA to demeaned excess returns for the N test assets to estimate
+the rotated fundamental factors
+```{r}
+R_1 <- R
+R_d_1 <- t(R_d)
+r_pca_1 <- PCA(R_d_1, ncp=15,graph = F)
+pc <- r_pca_1$ind$coord
+ar1 <- VAR(pc, p=1)
+ksi <- residuals(ar1)
+
+ ####ksi <- r_pca_1$ind$coord
+
+```
+2- Run time-series regressions of r on ksi to estimate beta
+Run a cross-sectional regression of r_bar on the columns of beta to estimate gamma
+```{r}
+R_1 <- ts(R_1[-1,])
+###R_1 <- ts(R_1) 
+
+ksi<-ts(ksi)
+lm1 <- tslm(R_1~0+ksi)
+beta1 <- t(coefficients(lm1))
+
+R_1_bar <- colMeans(R_1)
+lm2 <- lm(R_1_bar~0+beta1)
+gamma <- coefficients(lm2)
+```
+
+3. Run time-series regressions of g on ksi to estimate theta
+
+```{r}
+g <- ts(residuals(ar_pca)[indices_dates[-1],])
+g <- ts(g[-1,])
+lm3 <- tslm(g~0+ksi)
+theta <- coefficients(lm3)
+```
+
+Conclusion :
+
+```{r}
+gamma_g <- t(theta)%*% gamma
+df <- data.frame(Factor = paste0("PC",1:9),gamma_g = gamma_g)
+kable(df, caption = "Estimators of the risk premia for the conventional PCA")
+```
 # Biases without the three-pass methodology
 
 ***What happens if we do not use the 3-pass methodology?***
