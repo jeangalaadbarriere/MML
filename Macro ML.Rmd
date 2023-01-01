@@ -181,11 +181,11 @@ have a unit variance). In the article, the authors set the shrinkage
 parameter so that only 108 weights are active. The set the parameter
 `sumabsv` to 3 to get a similar outcome.
 
-```{r}
+```{r, message=F}
 library(PMA)
 data0<-as.matrix(data0)
 data0<-scale(data0) # we scale variables
-spca <- SPC(data0,sumabsv = 3, K=9)
+spca <- SPC(data0,sumabsv = 3, K=9, trace=F)
 weights <- spca$v
 row.names(weights)<- colnames(data0)
 sum(weights!=0)
@@ -195,8 +195,6 @@ components <- paste0("comp ", 1:9)
 table2 <- data.frame(Component = components, 
                      Cumulative_percentage_of_variance = spca$prop.var.explained)
 kable(table2, caption = "First 9 components of the SPCA")
-
-
 ```
 
 ```{r}
@@ -238,40 +236,39 @@ Even though our sparse components have similar interpretations as those
 derived by the authors, our plots are very different from those
 presented in **Figure 2** of the article
 
-## Innovation correlations
+## Innovations to the PCs
 
-### Autorégression sur la PCA
+The set of macro factors is composed of the innovations to the principal components which have been extracted by the PCA. The innovations are computed by running a first-order vector autoregression (VAR(1)) on the principal components. For both the conventional and sparse PCAs, we run a VAR(1) on the PCs, we compute the residuals (which correspond to the innovations) and we then compute the correlations between those residuals.
 
-`pca$ind$coord` contient les coordonnées pour chaque observation dans
-l'espace des 9 PC.
+### Conventional PCA
 
-```{r}
+We begin with the conventional PCA. `pca$ind$coord` contains the coordinates of each of the 120 macroeconomic variables in the space of the 9 PCs. We use the package `vars` to run the VAR(1). 
+
+```{r, message=F}
 library(vars)
-View(pca$ind$coord)
 data_pca <- pca$ind$coord
 row.names(data_pca) <- data$date
 ar_pca <- VAR(data_pca, p=1)
-#summary(ar_pca)
+correlations_pca <- round(cor(residuals(ar_pca)),2)
+kable(correlations_pca, caption = "Innovation correlations to conventional PCs")
 ```
+The results of this correlation matrix are very close to the one displayed in **Table 4** of the original article.
 
-La matrice de corrélation des résidus ressemble beaucoup à celle de
-l'article (table 4).
 
-### Autorégression sur la Sparse PCA
+### Sparse PCA
 
-`spca$u` contient les coordonnées pour chaque observation dans l'espace
-des 9 SPC.
+We follow the same method with the sparse PCA. Here, the coordinates of each of the 120 macroeconomic variables in the space of the 9 sparse PCs are stored in `spca$u`.
+
 
 ```{r}
-View(spca$u)
 data_spca <- spca$u
 row.names(data_spca) <- data$date
+colnames(data_spca) <- component_names
 ar_spca <- VAR(data_spca, p=1)
-summary(ar_spca)
+correlations_spca <- round(cor(residuals(ar_spca)),2)
+kable(correlations_spca, caption = "Innovation correlations to sparse PCs")
 ```
-
-Encore une fois, on n'est pas trop loin des résultats de l'article! cf
-table 4
+Once again, our results look quite similar to those of the original article, except for the ninth sparse PC. However, for some correlations, the reported sign is the opposite of the one indicated in the original article.
 
 ## Risk premia estimates
 
@@ -318,7 +315,7 @@ t <- nrow(R_d)
 n <- ncol(R_d)
 R_d <- t(as.matrix(R_d))
 mat <- (t(R_d) %*% R_d)/(t*n)
-r_pca <- PCA(mat, ncp=15)
+r_pca <- PCA(mat, ncp=15,graph = F)
 
 ksi <- t(r_pca$var$coord) #eigenvectors
 V <- sqrt(t)*t(r_pca$var$coord)
@@ -354,13 +351,15 @@ eta <- G %*% t(V) %*% solve(V %*% t(V))
 
 
 gamma_g <- eta %*% gamma
+df_pca <- data.frame(Factor = paste0("PC ", 1:9),
+                     gamma_g=gamma_g)
+kable(df_pca, caption = "Estimators of the risk premia for the conventional PCA")
 
 # with tslm
 library(forecast)
 G_ts <- ts(t(G))
 ksi_ts <- ts(t(ksi))
 lm3 <- tslm(G_ts~0+ksi_ts)
-coefficients(lm3)
 
 ####### same for sparse PCA :
 
@@ -373,6 +372,9 @@ eta_spca <- G_spca %*% t(V) %*% solve(V %*% t(V))
 
 
 gamma_g_spca <- eta_spca %*% gamma
+df_spca <- data.frame(Factor = component_names,
+                     gamma_g=gamma_g_spca)
+kable(df_spca, caption = "Estimators of the risk premia for the sparse PCA")
 ```
 
 # Biases without the three-pass methodology
@@ -396,7 +398,7 @@ methodology. This methodology consists in two steps :
     each asset ($\beta$)
 
 2.  Cross-sectional regression of the average returns of each asset on
-    the asset\' risk exposures
+    the asset' risk exposures
 
 We run this estimation on the macro factors obtained with the
 conventional PCA, and then on the sparse macro factors.
