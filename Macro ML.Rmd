@@ -383,14 +383,31 @@ kable(df_spca, caption = "Estimators of the risk premia for the sparse PCA")
 
 J'ai essayé de répliquer le résultat en utilisant les notations de notre article (Zhou-Rapach).
 
+Importation of asset returns
+
+```{r}
+R <- readRDS("data/portfolios.rds")
+R <- filter(R, date<='2019-12-01')
+dates <- R$date
+R<-dplyr::select(R,-1)
+
+data_rf <- read.csv(file = "data/TB3MS.csv")
+data_rf <- dplyr::select(data_rf, -1) # we remove the date
+for (i in 1:ncol(R)){
+  R[,i] <- as.numeric(R[,i]) - data_rf[,1]
+}
+
+R_d <- R-t(as.matrix(colMeans(R))) # demeaned excess returns
+```
+
+
 1- Apply conventional PCA to demeaned excess returns for the N test assets to estimate
 the rotated fundamental factors
 ```{r}
-R_1 <- R
-R_d_1 <- t(R_d)
-r_pca_1 <- PCA(R_d_1, ncp=15,graph = F)
-pc <- r_pca_1$ind$coord
-ar1 <- VAR(pc, p=1)
+pca_R <- PCA(R_d, ncp=15,graph = F)
+
+# factors are the innovations to the PCs :
+ar1 <- VAR(pca_R$ind$coord, p=1)
 ksi <- residuals(ar1)
 
  ####ksi <- r_pca_1$ind$coord
@@ -398,17 +415,18 @@ ksi <- residuals(ar1)
 ```
 2- Run time-series regressions of r on ksi to estimate beta
 Run a cross-sectional regression of r_bar on the columns of beta to estimate gamma
+Pb : time-regressions de r ou de r demeaned? Je pense que c'est r demeaned (mais ça équivaut normalement à régresser r avec constante)
 ```{r}
-R_1 <- ts(R_1[-1,])
-###R_1 <- ts(R_1) 
+R <- ts(R[-1,])
+###R <- ts(R) 
 
 ksi<-ts(ksi)
-lm1 <- tslm(R_1~0+ksi)
-beta1 <- t(coefficients(lm1))
+lm1 <- tslm(R~ksi)
+beta <- t(coefficients(lm1))[,-1]
 
-R_1_bar <- colMeans(R_1)
-lm2 <- lm(R_1_bar~0+beta1)
-gamma <- coefficients(lm2)
+R_bar <- colMeans(R)
+lm2 <- lm(R_bar~beta)
+gamma <- coefficients(lm2)[-1]
 ```
 
 3. Run time-series regressions of g on ksi to estimate theta
@@ -416,17 +434,56 @@ gamma <- coefficients(lm2)
 ```{r}
 g <- ts(residuals(ar_pca)[indices_dates[-1],])
 g <- ts(g[-1,])
-lm3 <- tslm(g~0+ksi)
-theta <- coefficients(lm3)
+lm3 <- tslm(g~ksi)
+theta <- coefficients(lm3)[-1,]
+kable(theta)
+
+r_squared_g <- vector()
+# Computation of the R²
+for(i in 1:9){
+  lm_tmp <- lm(g[,i]~ksi)
+  r_squared_g<-c(r_squared_g, summary(lm_tmp)$r.squared)
+}
+r_squared_g <- round(100*r_squared_g,2)
+
 ```
 
 Conclusion :
 
 ```{r}
 gamma_g <- t(theta)%*% gamma
-df <- data.frame(Factor = paste0("PC",1:9),gamma_g = gamma_g)
-kable(df, caption = "Estimators of the risk premia for the conventional PCA")
+df <- data.frame(Factor = paste0("PC",1:9),
+                 gamma_g = round(gamma_g,3),
+                 R_g_squared = paste0(r_squared_g,"%"))
+kable(df, caption = "Estimators of the risk premia for the conventional PCA", row.names = F)
 ```
+On n'est pas trop loin des résultats de l'article!
+
+
+Same method for SPCA
+```{r}
+g_spca <- ts(residuals(ar_spca)[indices_dates[-1],])
+g_spca <- ts(g_spca[-1,])
+lm3 <- tslm(g_spca~ksi)
+theta_spca <- coefficients(lm3)[-1,]
+#kable(theta_spca)
+
+r_squared_g_s <- vector()
+# Computation of the R²
+for(i in 1:9){
+  lm_tmp <- lm(g_spca[,i]~ksi)
+  r_squared_g_s<-c(r_squared_g_s, summary(lm_tmp)$r.squared)
+}
+r_squared_g_s <- round(100*r_squared_g_s,2)
+
+gamma_g <- t(theta_spca)%*% gamma
+df <- data.frame(Factor = paste0("PC",1:9),
+                 gamma_g = round(gamma_g,4),
+                 R_g_squared = paste0(r_squared_g_s,"%"))
+kable(df, caption = "Estimators of the risk premia for the sparse PCA", row.names = F)
+```
+Bof, pas terrible. Peut-être faut-il normaliser les résidus de la PCA sur les macrovariables?
+
 # Biases without the three-pass methodology
 
 ***What happens if we do not use the 3-pass methodology?***
@@ -455,30 +512,47 @@ conventional PCA, and then on the sparse macro factors.
 
 #### Conventional PCA
 
+Importation of returns
 ```{r}
-R_1 <- t(R)
-R_d_1 <- ts(t(R_d))
+R <- readRDS("data/portfolios.rds")
+R <- filter(R, date<='2019-12-01')
+dates <- R$date
+R<-dplyr::select(R,-1)
+
+data_rf <- read.csv(file = "data/TB3MS.csv")
+data_rf <- dplyr::select(data_rf, -1) # we remove the date
+for (i in 1:ncol(R)){
+  R[,i] <- as.numeric(R[,i]) - data_rf[,1]
+}
+
+R_d <- R-t(as.matrix(colMeans(R))) # demeaned excess returns
+```
+
+
+```{r}
+R_1 <- R
+R_d_1 <- ts(R_d)
 v_t <- ts(residuals(ar_pca)[indices_dates[-1],])
 
 lm_pca <- tslm(R_d_1~0+v_t)
 beta <- t(lm_pca$coefficients)
 
-R_bar <- rowMeans(R_1)
-lm_pca_2 <- lm(R_bar~0+beta)
+R_bar <- colMeans(R_1)
+lm_pca_2 <- lm(R_bar~beta)
 summary(lm_pca_2)
 ```
 
 #### Sparse PCA
 
 ```{r}
-R_2 <- t(R)
-R_d_2 <- ts(t(R_d))
+R_2 <- R
+R_d_2 <- ts(R_d)
 v_t_2 <- ts(residuals(ar_spca)[indices_dates[-1],])
 
 lm_spca <- tslm(R_d_2~0+v_t_2)
 beta_s <- t(lm_spca$coefficients)
 
-R_bar <- rowMeans(R_2)
+R_bar <- colMeans(R_2)
 lm_spca_2 <- lm(R_bar~0+beta_s)
 summary(lm_spca_2)
 ```
