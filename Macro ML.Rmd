@@ -396,40 +396,120 @@ data_rf <- dplyr::select(data_rf, -1) # we remove the date
 for (i in 1:ncol(R)){
   R[,i] <- as.numeric(R[,i]) - data_rf[,1]
 }
-
-R_d <- R-t(as.matrix(colMeans(R))) # demeaned excess returns
+R <- t(R)
 ```
 
+First, we stationarize and normalise our data
+```{r}
+#the stationarize version
+R_sta <- matrix(0,nrow=nrow(R),ncol = (ncol(R)-1))
+for (i in 1:nrow(R_sta)){
+  R_sta[i,] <- diff(R[i,])
+}
+
+#the demeanded version
+R_d <- R_sta
+for (i in 1:nrow(R_d)){
+  R_d[i,] <- R_sta[i,] - mean(R_sta[i,])
+}
+```
 
 1- Apply conventional PCA to demeaned excess returns for the N test assets to estimate
 the rotated fundamental factors
+STEP 1
 ```{r}
-pca_R <- PCA(R_d, ncp=15,graph = F)
+t <- ncol(R)
+n <- nrow(R)
+mat <- (t(R_d) %*% R_d)/(t*n)
+r_pca <- PCA(mat, ncp=15, graph=F, scale.unit = TRUE)
 
-# factors are the innovations to the PCs :
-ar1 <- VAR(pca_R$ind$coord, p=1)
-ksi <- residuals(ar1)
+#ksi <- t(r_pca$var$coord) #eigenvectors
+V <- sqrt(t)*t(r_pca$var$coord)
 
- ####ksi <- r_pca_1$ind$coord
+#normalize Vt
+for (i in 1:nrow(V)){
+  V[i,] <- (1/sqrt(t))*(V[i,])/sqrt(var(V[i,]))
+}
+#V %*% t(V) #it's now eq to the identity of dim 15 = p_hat
 
+# estimator of beta (exposure to factors)
+beta <- (1/t)*R_d%*%t(V)
 ```
 2- Run time-series regressions of r on ksi to estimate beta
 Run a cross-sectional regression of r_bar on the columns of beta to estimate gamma
 Pb : time-regressions de r ou de r demeaned? Je pense que c'est r demeaned (mais ça équivaut normalement à régresser r avec constante)
+
 ```{r}
-R <- ts(R[-1,])
-###R <- ts(R) 
+r_mean <- matrix(rowMeans(R_sta)) #average return
+gamma <- solve(t(beta)%*%beta) %*% t(beta) %*% r_mean #OLS
 
-ksi<-ts(ksi)
-lm1 <- tslm(R~ksi)
-beta <- t(coefficients(lm1))[,-1]
+#Now, we calculate Rf2 associated with this cross-sectional reg
+r_mean_mean <- mean(r_mean) #almost 0 by construction
+Rf2 <- sum((beta %*% gamma - r_mean_mean)**2) / sum((r_mean-r_mean_mean)**2)
+Rf2
+```
 
-R_bar <- colMeans(R)
-lm2 <- lm(R_bar~beta)
-gamma <- coefficients(lm2)[-1]
+STEP 2 - variant avec OLS
+
+```{r}
+# alternative : with OLS
+lm1 <- lm(r_mean~beta)
+summary(lm1)
+#on trouve le même R² à la main avec l'étape d'avant
 ```
 
 3. Run time-series regressions of g on ksi to estimate theta
+
+```{r}
+# we restrict the observed factors to the good time period
+dates_pca <- data$sasdate
+# we drop the first element of res (ar(1) has one obs less)
+indices_dates <- dates_pca>="1963-08-01" & dates_pca<= "2019-12-01"
+
+# residuals of the VAR(1)
+res <- residuals(ar_pca)
+G <- res[indices_dates[-1],]
+G <- t(G)
+#shall we normalize? I don't think
+
+#to use the OLS, we delet the constant using the time average
+G_d <- G - rowMeans(G)
+eta <- G_d %*% t(V) %*% solve(V %*% t(V))
+gamma_g <- eta %*% gamma
+rg <- 1:9
+for (i in 1:9){
+  rg[i] <- (sum(((eta %*% V)[i,] - rowMeans(G_d)[i])**2))/(sum((G_d[i,] - rowMeans(G_d)[i])**2))
+}
+df_pca <- data.frame(Factor = paste0("PC ", 1:9),
+                     gamma_g=gamma_g, Rg = rg)
+kable(df_pca, caption = "Estimators of the risk premia for the conventional PCA")
+
+# with tslm
+#library(forecast)
+#G_ts <- ts(t(G))
+#ksi_ts <- ts(t(ksi))
+#lm3 <- tslm(G_ts~0+ksi_ts)
+
+####### same for sparse PCA :
+
+# residuals of the VAR(1)
+res_spca <- residuals(ar_spca)
+G_spca <- res_spca[indices_dates[-1],] # we drop the first element of res (ar(1) has one obs less)
+G_spca <- t(G_spca)
+G_spca_d <- G_spca - rowMeans(G_spca)
+eta_spca <- G_spca_d %*% t(V) %*% solve(V %*% t(V))
+gamma_g_spca <- eta_spca %*% gamma
+rgs <- 1:9
+for (i in 1:9){
+  rgs[i] <- (sum(((eta_spca %*% V)[i,] - rowMeans(G_spca_d)[i])**2))/(sum((G_spca_d[i,] - rowMeans(G_spca_d)[i])**2))
+}
+df_spca <- data.frame(Factor = component_names,
+                     gamma_g=gamma_g_spca, Rg = rgs)
+
+kable(df_spca, caption = "Estimators of the risk premia for the sparse PCA")
+```
+
+C'est le reste du code que tu avais fait FLavien, je n'ai rien modifié après
 
 ```{r}
 g <- ts(residuals(ar_pca)[indices_dates[-1],])
