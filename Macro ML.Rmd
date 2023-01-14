@@ -222,7 +222,9 @@ original article. In our results, it is difficult to interpret this
 component as an index for credit ; we therefore keep the name "SPC 9".
 
 ```{r, fig.height=7, fig.cap="Sparse principal components"}
-spca_ts <- ts(data=spca$u, start = c(1960,1), frequency=12)
+u <- scale(spca$u)
+
+spca_ts <- ts(data=u, start = c(1960,1), frequency=12)
 par(mfrow = c(3, 3), mar = c(5.1, 4.1, 4.1, 2.1))
 for(i in 1:9){
   plot(spca_ts[,i],
@@ -238,11 +240,19 @@ presented in **Figure 2** of the article
 
 ## Innovations to the PCs
 
-The set of macro factors is composed of the innovations to the principal components which have been extracted by the PCA. The innovations are computed by running a first-order vector autoregression (VAR(1)) on the principal components. For both the conventional and sparse PCAs, we run a VAR(1) on the PCs, we compute the residuals (which correspond to the innovations) and we then compute the correlations between those residuals.
+The set of macro factors is composed of the innovations to the principal
+components which have been extracted by the PCA. The innovations are
+computed by running a first-order vector autoregression (VAR(1)) on the
+principal components. For both the conventional and sparse PCAs, we run
+a VAR(1) on the PCs, we compute the residuals (which correspond to the
+innovations) and we then compute the correlations between those
+residuals.
 
 ### Conventional PCA
 
-We begin with the conventional PCA. `pca$ind$coord` contains the coordinates of each of the 120 macroeconomic variables in the space of the 9 PCs. We use the package `vars` to run the VAR(1). 
+We begin with the conventional PCA. `pca$ind$coord` contains the
+coordinates of each of the 120 macroeconomic variables in the space of
+the 9 PCs. We use the package `vars` to run the VAR(1).
 
 ```{r, message=F}
 library(vars)
@@ -252,23 +262,29 @@ ar_pca <- VAR(data_pca, p=1)
 correlations_pca <- round(cor(residuals(ar_pca)),2)
 kable(correlations_pca, caption = "Innovation correlations to conventional PCs")
 ```
-The results of this correlation matrix are very close to the one displayed in **Table 4** of the original article.
 
+The results of this correlation matrix are very close to the one
+displayed in **Table 4** of the original article.
 
 ### Sparse PCA
 
-We follow the same method with the sparse PCA. Here, the coordinates of each of the 120 macroeconomic variables in the space of the 9 sparse PCs are stored in `spca$u`.
-
+We follow the same method with the sparse PCA. Here, the coordinates of
+each of the 120 macroeconomic variables in the space of the 9 sparse PCs
+are stored in `spca$u`.
 
 ```{r}
-data_spca <- spca$u
+data_spca <- scale(spca$u)
 row.names(data_spca) <- data$date
 colnames(data_spca) <- component_names
 ar_spca <- VAR(data_spca, p=1)
 correlations_spca <- round(cor(residuals(ar_spca)),2)
 kable(correlations_spca, caption = "Innovation correlations to sparse PCs")
 ```
-Once again, our results look quite similar to those of the original article, except for the ninth sparse PC. However, for some correlations, the reported sign is the opposite of the one indicated in the original article.
+
+Once again, our results look quite similar to those of the original
+article, except for the ninth sparse PC. However, for some correlations,
+the reported sign is the opposite of the one indicated in the original
+article.
 
 ## Risk premia estimates
 
@@ -377,11 +393,10 @@ df_spca <- data.frame(Factor = component_names,
 kable(df_spca, caption = "Estimators of the risk premia for the sparse PCA")
 ```
 
-
-
 ## Three-pass methodology, with notations of Zhou-Rapach
 
-J'ai essayé de répliquer le résultat en utilisant les notations de notre article (Zhou-Rapach).
+J'ai essayé de répliquer le résultat en utilisant les notations de notre
+article (Zhou-Rapach).
 
 Importation of asset returns
 
@@ -400,6 +415,7 @@ R <- t(R)
 ```
 
 First, we stationarize and normalise our data
+
 ```{r}
 #the stationarize version
 R_sta <- matrix(0,nrow=nrow(R),ncol = (ncol(R)-1))
@@ -414,9 +430,9 @@ for (i in 1:nrow(R_d)){
 }
 ```
 
-1- Apply conventional PCA to demeaned excess returns for the N test assets to estimate
-the rotated fundamental factors
-STEP 1
+1- Apply conventional PCA to demeaned excess returns for the N test
+assets to estimate the rotated fundamental factors STEP 1
+
 ```{r}
 t <- ncol(R)
 n <- nrow(R)
@@ -435,9 +451,11 @@ for (i in 1:nrow(V)){
 # estimator of beta (exposure to factors)
 beta <- (1/t)*R_d%*%t(V)
 ```
-2- Run time-series regressions of r on ksi to estimate beta
-Run a cross-sectional regression of r_bar on the columns of beta to estimate gamma
-Pb : time-regressions de r ou de r demeaned? Je pense que c'est r demeaned (mais ça équivaut normalement à régresser r avec constante)
+
+2- Run time-series regressions of r on ksi to estimate beta Run a
+cross-sectional regression of r_bar on the columns of beta to estimate
+gamma Pb : time-regressions de r ou de r demeaned? Je pense que c'est r
+demeaned (mais ça équivaut normalement à régresser r avec constante)
 
 ```{r}
 r_mean <- matrix(rowMeans(R_sta)) #average return
@@ -458,13 +476,14 @@ summary(lm1)
 #on trouve le même R² à la main avec l'étape d'avant
 ```
 
-3. Run time-series regressions of g on ksi to estimate theta
+3.  Run time-series regressions of g on ksi to estimate theta
 
 ```{r}
 # we restrict the observed factors to the good time period
 dates_pca <- data$sasdate
 # we drop the first element of res (ar(1) has one obs less)
 indices_dates <- dates_pca>="1963-08-01" & dates_pca<= "2019-12-01"
+#indices_dates <- dates_pca>="1963-07-01" & dates_pca<= "2019-12-01"
 
 # residuals of the VAR(1)
 res <- residuals(ar_pca)
@@ -509,83 +528,137 @@ df_spca <- data.frame(Factor = component_names,
 kable(df_spca, caption = "Estimators of the risk premia for the sparse PCA")
 ```
 
-C'est le reste du code que tu avais fait FLavien, je n'ai rien modifié après
+##################################### Modifs  ################
+
+STEP1- Apply conventional PCA to demeaned excess returns for the N test
+assets to estimate the rotated fundamental factors STEP 1
 
 ```{r}
-g <- ts(residuals(ar_pca)[indices_dates[-1],])
-g <- ts(g[-1,])
-lm3 <- tslm(g~ksi)
-theta <- coefficients(lm3)[-1,]
-kable(theta)
 
-r_squared_g <- vector()
+r_t <- t(R) # excess returns, one row per date
+
+r_pca <- PCA(r_t, ncp=15, graph=F, scale.unit = TRUE)
+ksi <- r_pca$ind$coord #rotated factors
+
+```
+
+STEP 2- Run time-series regressions of r on ksi to estimate beta. Run a
+cross-sectional regression of r_bar on the columns of beta to estimate
+gamma Pb : time-regressions de r ou de r demeaned? Je pense que c'est r
+demeaned (mais ça équivaut normalement à régresser r avec constante)
+
+```{r}
+lm_step2 <- tslm(ts(r_t)~ts(ksi)) #without constant
+
+beta <- t(lm_step2$coefficients)
+beta <- beta[,-1] # we drop the constant
+
+r_bar <- colMeans(t(R)) #average return
+lm_step2_CS <- lm(r_bar~beta+0) # no intercept in the model (euation 3.3)
+summary(lm_step2_CS)
+
+gamma <- matrix(coefficients(lm_step2_CS)) # without the constant
+
+# R² très proche de l'article!
+
+```
+
+STEP 3.  Run time-series regressions of g on ksi to estimate theta
+
+```{r}
+# we restrict the observed factors to the good time period
+dates_pca <- data$sasdate
+# we drop the first element of res (ar(1) has one obs less)
+indices_dates <- dates_pca>="1963-07-01" & dates_pca<= "2019-12-01"
+
+# residuals of the VAR(1)
+g_t_conv <- ts(residuals(ar_pca)[indices_dates[-1],])
+
+lm_factors_conv <- tslm(g_t_conv~ts(ksi)) # without constant (equation 3.2)
+theta_conv <- t(coefficients(lm_factors_conv))
+theta_conv <- theta_conv[,-1]
+
+r_squared_g_conv <- vector()
 # Computation of the R²
 for(i in 1:9){
-  lm_tmp <- lm(g[,i]~ksi)
-  r_squared_g<-c(r_squared_g, summary(lm_tmp)$r.squared)
+  lm_tmp <- lm(g_t_conv[,i]~ksi)
+  r_squared_g_conv<-c(r_squared_g_conv, summary(lm_tmp)$r.squared)
 }
-r_squared_g <- round(100*r_squared_g,2)
+r_squared_g_conv <- round(100*r_squared_g_conv,2)
 
 ```
 
 Conclusion :
 
 ```{r}
-gamma_g <- t(theta)%*% gamma
+gamma_g_conv <- theta_conv%*% gamma
 df <- data.frame(Factor = paste0("PC",1:9),
-                 gamma_g = round(gamma_g,3),
-                 R_g_squared = paste0(r_squared_g,"%"))
+                 gamma_g = round(gamma_g_conv,3),
+                 R_g_squared = paste0(r_squared_g_conv,"%"))
 kable(df, caption = "Estimators of the risk premia for the conventional PCA", row.names = F)
 ```
+
 On n'est pas trop loin des résultats de l'article!
 
-
 Same method for SPCA
-```{r}
-g_spca <- ts(residuals(ar_spca)[indices_dates[-1],])
-g_spca <- ts(g_spca[-1,])
-lm3 <- tslm(g_spca~ksi)
-theta_spca <- coefficients(lm3)[-1,]
-#kable(theta_spca)
 
-r_squared_g_s <- vector()
+```{r}
+g_t_sparse <- ts(residuals(ar_spca)[indices_dates[-1],])
+
+
+
+lm_factors_sparse <- tslm(g_t_sparse~ts(ksi)) # without constant (equation 3.2)
+theta_sparse <- t(coefficients(lm_factors_sparse))
+theta_sparse <- theta_sparse[,-1]
+View(theta_sparse)
+
+r_squared_g_sparse <- vector()
 # Computation of the R²
 for(i in 1:9){
-  lm_tmp <- lm(g_spca[,i]~ksi)
-  r_squared_g_s<-c(r_squared_g_s, summary(lm_tmp)$r.squared)
+  lm_tmp <- lm(g_t_sparse[,i]~ksi)
+  r_squared_g_sparse<-c(r_squared_g_sparse, summary(lm_tmp)$r.squared)
 }
-r_squared_g_s <- round(100*r_squared_g_s,2)
+r_squared_g_sparse <- round(100*r_squared_g_sparse,2)
 
-gamma_g <- t(theta_spca)%*% gamma
+
+gamma_g_sparse <- theta_sparse%*% gamma
 df <- data.frame(Factor = paste0("PC",1:9),
-                 gamma_g = round(gamma_g,4),
-                 R_g_squared = paste0(r_squared_g_s,"%"))
+                 gamma_g = round(gamma_g_sparse,4),
+                 R_g_squared = paste0(r_squared_g_sparse,"%"))
 kable(df, caption = "Estimators of the risk premia for the sparse PCA", row.names = F)
 ```
-Bof, pas terrible. Peut-être faut-il normaliser les résidus de la PCA sur les macrovariables?
+
 
 # Biases without the three-pass methodology
 
 ***What happens if we do not use the 3-pass methodology?***
 
-The authors have used the three-pass methodology due to concerns about
-potential omitted factors bias. We now go beyond the scope of the
-original article as we study whether there is evidence of such biases.
-To achieve this, we estimate the risk premia with a simple two-pass
-methodology, and then compare our results to the outcome of the
-three-pass methodology.
+The motivation for using the three-pass methodology is to avoid
+potential omitted factors bias. We now study whether this concern is
+relevant, i.e. whether there is evidence of such biases. To achieve
+this, we estimate the risk premia with a simple two-pass methodology,
+and then compare our results to the outcome of the three-pass
+methodology.
 
 Let us therefore assume that the true model for asset returns only
-depends on our macro factors. If this assumption is true, then we can
-derive unbiased estimates of the risk premia with a two-pass
-methodology. This methodology consists in two steps :
+depends on our macro factors :
+
+$\boldsymbol{r_t} = \boldsymbol{\alpha}+ \boldsymbol{\beta} '\boldsymbol{\gamma}+\boldsymbol{\beta}' \boldsymbol{g_t} + \boldsymbol{\varepsilon_t}$
+
+Where $\boldsymbol{g_t}$ are the macro factors (i.e. the innovations to
+the PCs) and $\boldsymbol{\gamma}$ the risk premia.
+
+If this assumption is true, then we can derive unbiased estimates of the
+risk premia with a two-pass methodology. This methodology consists in
+two steps :
 
 1.  Time series regression of the demeaned asset excess returns on the
     innovations to the macro factors, to estimate the risk exposures of
-    each asset ($\beta$)
+    each asset ($\boldsymbol\beta$)
 
 2.  Cross-sectional regression of the average returns of each asset on
-    the asset' risk exposures
+    the asset' risk exposures to estimate the risk premia
+    ($\boldsymbol\gamma$)
 
 We run this estimation on the macro factors obtained with the
 conventional PCA, and then on the sparse macro factors.
@@ -593,6 +666,10 @@ conventional PCA, and then on the sparse macro factors.
 #### Conventional PCA
 
 Importation of returns
+
+`g_t_conv`correspond to the conventional macro factors, i.e. the
+innovatiopns to the conventional PCs.
+
 ```{r}
 R <- readRDS("data/portfolios.rds")
 R <- filter(R, date<='2019-12-01')
@@ -605,35 +682,41 @@ for (i in 1:ncol(R)){
   R[,i] <- as.numeric(R[,i]) - data_rf[,1]
 }
 
-R_d <- R-t(as.matrix(colMeans(R))) # demeaned excess returns
+r_t <- R 
+
+r_t <- ts(R) # excess returns
+
+#R_d <- R-t(as.matrix(colMeans(R))) # excess returns
 ```
 
-
 ```{r}
-R_1 <- R
-R_d_1 <- ts(R_d)
-v_t <- ts(residuals(ar_pca)[indices_dates[-1],])
+## TS regression
+g_t_conv <- ts(residuals(ar_pca)[indices_dates[-1],])
 
-lm_pca <- tslm(R_d_1~0+v_t)
+lm_pca <- tslm(r_t~g_t_conv)
 beta <- t(lm_pca$coefficients)
 
-R_bar <- colMeans(R_1)
-lm_pca_2 <- lm(R_bar~beta)
+beta <- beta[,-1]#we drop the constants
+
+# CS regression
+r_bar <- colMeans(R)
+
+lm_pca_2 <- lm(r_bar~beta)
 summary(lm_pca_2)
+kable(coefficients(lm_pca_2))
 ```
 
 #### Sparse PCA
 
 ```{r}
-R_2 <- R
-R_d_2 <- ts(R_d)
-v_t_2 <- ts(residuals(ar_spca)[indices_dates[-1],])
+g_t_sparse <- ts(residuals(ar_spca)[indices_dates[-1],])
 
-lm_spca <- tslm(R_d_2~0+v_t_2)
+lm_spca <- tslm(r_t~g_t_sparse)
 beta_s <- t(lm_spca$coefficients)
+beta_s <- beta_s[,-1]#we drop the constants
 
-R_bar <- colMeans(R_2)
-lm_spca_2 <- lm(R_bar~0+beta_s)
+
+lm_spca_2 <- lm(r_bar~beta_s)
 summary(lm_spca_2)
 ```
 
