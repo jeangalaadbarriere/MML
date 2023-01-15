@@ -43,6 +43,7 @@ indicators. Some previous papers have arbitrarily chosen a number of
 macroeconomic variables. Selecting a few relevant explanatory variables
 among a large set of variables is typically a problem which can be
 solved using machine learning techniques. In this paper, we present and
+<<<<<<< HEAD
 replicate a recent article by David Rapach and Guofu Zhou[@rapach2018],
 which uses some of those techniques. Their paper (to which we will refer
 as \`\`the original article" in this document) innovates by using
@@ -51,6 +52,19 @@ large set of macroeconomic variables. The central ML technique used here
 is **sparse Principal Component Analysis** (PCA). As we will see below,
 the main advantage of sparse PCA over PCA lies in the interpretability
 of the factors.
+=======
+replicate a recent article by David Rapach and Guofu Zhou[^2], which
+uses some of those techniques. Their paper (to which we will refer as
+\`\`the original article" in this document) innovates by using machine
+learning techniques so as to construct a few factors out of a large set
+of macroeconomic variables. The central ML technique used here is
+**sparse Principal Component Analysis** (PCA). As we will see below, the
+main advantage of sparse PCA over PCA lies in the interpretability of
+the factors.
+
+[^2]: Rapach, David, and Guofu Zhou. "Sparse macro factors." *Available
+    at SSRN 3259447* (2021).
+>>>>>>> 58f68277678ab9eba663ebb4fcc63381a8656092
 
 The article compares the performance of conventional PCA and sparse PCA
 in asset return factor models. It begins by applying conventional and
@@ -59,7 +73,11 @@ components are extracted, they are used as factors in asset pricing
 models. The goal is to determine whether those factors are relevant and
 whether they generate significant risk premia. The estimation of the of
 the risk premia uses the **three-pass methodology** developed by Giglio
+<<<<<<< HEAD
 and Xiu [@assetpr]. Their methodology is designed to compute unbiased
+=======
+and Xiu ([@assetpr]). Their methodology is designed to compute unbiased
+>>>>>>> 58f68277678ab9eba663ebb4fcc63381a8656092
 risk premia estimates under omission of relevant risk factors and
 measurement error. The concern about factor omission is indeed well
 founded. If we assume that the asset excess returns are only determined
@@ -92,7 +110,11 @@ more than a hundred variables. For instance, if a PC is built out of a
 few price indices, we can interpret it as an index of inflation.
 
 We perform both conventional and sparse PCA on a set of 120
+<<<<<<< HEAD
 macroeconomic variables from the FRED-MD database[^2]. Those variables
+=======
+macroeconomic variables from the FRED-MD database[^3]. Those variables
+>>>>>>> 58f68277678ab9eba663ebb4fcc63381a8656092
 cover various categories: output and income, labor market, housing,
 consumption, money and credit, interest and exchanges rates, and prices.
 Here are some examples of macroeconomic variables: real personal income,
@@ -100,7 +122,11 @@ industrial production indices, civilian unemployment, number of
 employees by sector, number of housing permits, M1 money stock,
 commercial and industrial loans, fed fund rates, consumer price indices.
 
+<<<<<<< HEAD
 [^2]: Downloaded from
+=======
+[^3]: Downloaded from
+>>>>>>> 58f68277678ab9eba663ebb4fcc63381a8656092
     <https://research.stlouisfed.org/econ/mccracken/fred-databases/>
 
 ## Initial treatment of the variables
@@ -380,7 +406,11 @@ In this section, we estimate the risk premia of the conventional and
 sparse macro factors derived in the preceding section. The objective is
 to determine whether some of the macro factors generate some significant
 risk premia. The computation uses the three-pass-methodology developed
+<<<<<<< HEAD
 by [@assetpra].
+=======
+by [@assetpr].
+>>>>>>> 58f68277678ab9eba663ebb4fcc63381a8656092
 
 ## Portfolio data
 
@@ -452,12 +482,21 @@ returns for the N test assets. We therefore estimate the rotated
 fundamental factors $\boldsymbol{\tilde\xi_t}$.
 
 ```{r}
+<<<<<<< HEAD
 
 r_t <- t(R) # excess returns, one row per date
 
 
 r_t_demeaned <- r_t-colMeans(r_t)
 
+=======
+
+r_t <- t(R) # excess returns, one row per date
+
+
+r_t_demeaned <- r_t-colMeans(r_t)
+
+>>>>>>> 58f68277678ab9eba663ebb4fcc63381a8656092
 r_pca <- PCA(r_t_demeaned, ncp=15, graph=F, scale.unit = TRUE)
 ksi <- r_pca$ind$coord #rotated factors
 
@@ -662,5 +701,8 @@ This result is consistent with the result of the original article.
 
 Replication with a different shrinkage parameter so as to select only
 one or two variables by PC.
+<<<<<<< HEAD
 
 # References
+=======
+>>>>>>> 58f68277678ab9eba663ebb4fcc63381a8656092
