@@ -482,21 +482,21 @@ returns for the N test assets. We therefore estimate the rotated
 fundamental factors $\boldsymbol{\tilde\xi_t}$.
 
 ```{r}
-<<<<<<< HEAD
+#<<<<<<< HEAD
 
 r_t <- t(R) # excess returns, one row per date
 
 
 r_t_demeaned <- r_t-colMeans(r_t)
 
-=======
+#=======
 
 r_t <- t(R) # excess returns, one row per date
 
 
 r_t_demeaned <- r_t-colMeans(r_t)
 
->>>>>>> 58f68277678ab9eba663ebb4fcc63381a8656092
+#>>>>>>> 
 r_pca <- PCA(r_t_demeaned, ncp=15, graph=F, scale.unit = TRUE)
 ksi <- r_pca$ind$coord #rotated factors
 
@@ -516,14 +516,14 @@ lm_step2 <- tslm(ts(r_t)~ts(ksi)) #without constant
 beta <- t(lm_step2$coefficients)
 beta <- beta[,-1] # we drop the constant
 
-#t_stat <- 
-
 r_bar <- colMeans(t(R)) #average return
 lm_step2_CS <- lm(r_bar~beta+0) # no intercept in the model (equation 3.3)
-summary(lm_step2_CS)
+#summary(lm_step2_CS)
 
 gamma <- matrix(coefficients(lm_step2_CS)) # without the constant
 
+#We store the covariance matrix for the latter calcul of t-stat
+Cov_gamma <- NeweyWest(lm_step2_CS, lag = 4, prewhite = FALSE) 
 ```
 
 ### Step 3 : Regressions of macro factors on asset return PCs
@@ -538,20 +538,74 @@ indices_dates <- dates_pca>="1963-07-01" & dates_pca<= "2019-12-01"
 
 # residuals of the VAR(1)
 g_t_conv <- ts(residuals(ar_pca)[indices_dates[-1],])
-View(g_t_conv)
 
-lm_factors_conv <- tslm(g_t_conv~ts(ksi)) # without constant (equation 3.2)
+lm_factors_conv <- lm(g_t_conv~ts(ksi)) # without constant (equation 3.2)
 theta_conv <- t(coefficients(lm_factors_conv))
 theta_conv <- theta_conv[,-1]
+```
+
+
+Calculation of the Covariance matrix
+
+We are using an asymptotic estimation of the covariance matrix of $\hat{\gamma_g}$. This is described in **je vais mettre le détail, ainsi que les formules liées et pourquoi j'ai pas pu utiliser de bibliothèques (sandwich ou plm) qui ne s'appliquent pas ici car on traite d'un produit**
+```{r}
+#V <- sqrt(nrow(ksi))*t(ksi) 
+#sigma_v <- (1/nrow(ksi))*V%*%t(V)
+V <- t(ksi) 
+sigma_v <- V%*%t(V)
+Z <- t(g_t_conv) - theta_conv %*% V
+
+#First, we calculate the Newey West estimators
+Pi_11 <- matrix(0,9,9)
+Ti <- ncol(Z)
+for (t in 1:Ti){Pi_11 <- Pi_11 + (Z[,t]%*%t(V[,t]))%*%t(Z[,t]%*%t(V[,t]))}
+#usually, the lag NW = 4, and then q+1=5
+for (m in 1:4){
+  for (t in (m+1):Ti){
+    Pi_11 <- Pi_11 + (1-m/5)*(Z[,t-m]%*%t(V[,t-m]) %*% t(Z[,t]%*%t(V[,t])) + Z[,t]%*%t(V[,t]) %*% t(Z[,t-m]%*%t(V[,t-m])))
+  }
+}
+Pi_11 <- Pi_11/Ti
+
+Pi_12 <- matrix(0,9,1)
+for (t in 1:Ti){Pi_12 <- Pi_12 + (Z[,t]%*%t(V[,t]))%*%V[,t]}
+for (m in 1:4){
+  for (t in (m+1):Ti){
+    Pi_12 <- Pi_12 + (1-m/5)*(Z[,t-m]%*%t(V[,t-m]) %*% V[,t] + Z[,t]%*%t(V[,t]) %*% V[,t-m])
+  }
+}
+Pi_12 <- Pi_12/Ti
+
+Pi_22 <- matrix(0,1,1)
+for (t in 1:Ti){Pi_22 <- Pi_22 + t(V[,t])%*%V[,t]}
+for (m in 1:4){
+  for (t in (m+1):Ti){
+    Pi_22 <- Pi_22 + (1-m/5)*(t(V[,t-m]) %*% V[,t] + t(V[,t]) %*% V[,t-m])
+  }
+}
+Pi_22 <- Pi_22/Ti
+
+#Now, we calculate the asymptotic covariance matrix
+#this appears in the formula
+Mat <- t(kronecker(t(gamma) %*% solve(sigma_v), rep(1,9), FUN = "*"))
+#we use theta_conv = t(eta) and Pi_22 is a scalar
+Cov_gamma_g_conv <- Mat %*% Pi_11 %*% t(Mat) + (Mat * as.vector(Pi_12)) %*% theta_conv + t((Mat * as.vector(Pi_12)) %*% theta_conv) + Pi_22[1,1] * t(theta_conv) %*% theta_conv
+```
+
+
+```{r}
+gamma_g_conv <- theta_conv %*% gamma
 
 r_squared_g_conv <- vector()
-# Computation of the R²
+t_stat_g_conv <- vector()
+
+# Computation of the R² and the t_stat
 for(i in 1:9){
   lm_tmp <- lm(g_t_conv[,i]~ksi)
   r_squared_g_conv<-c(r_squared_g_conv, summary(lm_tmp)$r.squared)
+  t_stat_g_conv <- c(t_stat_g_conv, gamma_g_conv[i,]/sqrt(Cov_gamma_g_conv[i,i]))
 }
 r_squared_g_conv <- round(100*r_squared_g_conv,2)
-
 ```
 
 ### Estimation results
@@ -560,11 +614,21 @@ r_squared_g_conv <- round(100*r_squared_g_conv,2)
 
 **[à rédiger]**
 
+For the calcul of each t-stats associated to each $\hat{\gamma_{gi}}$, we use the 
+following definition, with $\bar{\gamma_g}=0$:
+
+$$t_{\hat{\gamma_{gi}}} = \frac{\hat{\gamma_{gi}} - \bar{\gamma_g}}{se(\hat{\gamma_{gi}})}$$
+The paper explain using an heteroskedastic-compatible and autocorellation-robust
+estimator, the Newey and West (1987) one. In R, we can get it (the variance, 
+instead to the standard error) with the vcovNW function of the package plm.
+
+**[Flavien, penses-tu que je devrais détailler un peu comment ça fonctionne?]**
+**[Je ne pense pas]**
 ```{r}
-gamma_g_conv <- theta_conv%*% gamma
 df <- data.frame(Factor = paste0("PC",1:9),
                  gamma_g = round(gamma_g_conv,3),
-                 R_g_squared = paste0(r_squared_g_conv,"%"))
+                 R_g_squared = paste0(r_squared_g_conv,"%"), t_stat = round(t_stat_g_conv,3))
+
 kable(df, caption = "Estimators of the risk premia for the conventional PCA", row.names = F)
 ```
 
@@ -576,27 +640,57 @@ Same method for SPCA
 
 ```{r}
 g_t_sparse <- ts(residuals(ar_spca)[indices_dates[-1],])
-
-View(g_t_sparse)
-
 lm_factors_sparse <- tslm(g_t_sparse~ts(ksi)) # without constant (equation 3.2)
 theta_sparse <- t(coefficients(lm_factors_sparse))
 theta_sparse <- theta_sparse[,-1]
-View(theta_sparse)
 
+Z <- t(g_t_sparse) - theta_sparse %*% V
+
+Pi_11 <- matrix(0,9,9)
+Ti <- ncol(Z)
+for (t in 1:Ti){Pi_11 <- Pi_11 + (Z[,t]%*%t(V[,t]))%*%t(Z[,t]%*%t(V[,t]))}
+for (m in 1:4){
+  for (t in (m+1):Ti){
+    Pi_11 <- Pi_11 + (1-m/5)*(Z[,t-m]%*%t(V[,t-m]) %*% t(Z[,t]%*%t(V[,t])) + Z[,t]%*%t(V[,t]) %*% t(Z[,t-m]%*%t(V[,t-m])))
+  }
+}
+Pi_11 <- Pi_11/Ti
+
+Pi_12 <- matrix(0,9,1)
+for (t in 1:Ti){Pi_12 <- Pi_12 + (Z[,t]%*%t(V[,t]))%*%V[,t]}
+for (m in 1:4){
+  for (t in (m+1):Ti){
+    Pi_12 <- Pi_12 + (1-m/5)*(Z[,t-m]%*%t(V[,t-m]) %*% V[,t] + Z[,t]%*%t(V[,t]) %*% V[,t-m])
+  }
+}
+Pi_12 <- Pi_12/Ti
+
+Pi_22 <- matrix(0,1,1)
+for (t in 1:Ti){Pi_22 <- Pi_22 + t(V[,t])%*%V[,t]}
+for (m in 1:4){
+  for (t in (m+1):Ti){
+    Pi_22 <- Pi_22 + (1-m/5)*(t(V[,t-m]) %*% V[,t] + t(V[,t]) %*% V[,t-m])
+  }
+}
+Pi_22 <- Pi_22/Ti
+
+Mat <- t(kronecker(t(gamma) %*% solve(sigma_v), rep(1,9), FUN = "*"))
+Cov_gamma_g_sparse <- Mat %*% Pi_11 %*% t(Mat) + (Mat * as.vector(Pi_12)) %*% theta_sparse + t((Mat * as.vector(Pi_12)) %*% theta_sparse) + Pi_22[1,1] * t(theta_sparse) %*% theta_sparse
+
+gamma_g_sparse <- theta_sparse%*% gamma
 r_squared_g_sparse <- vector()
-# Computation of the R²
+t_stat_g_sparse <- vector()
+
 for(i in 1:9){
   lm_tmp <- lm(g_t_sparse[,i]~ksi)
   r_squared_g_sparse<-c(r_squared_g_sparse, summary(lm_tmp)$r.squared)
+  t_stat_g_sparse <- c(t_stat_g_sparse, gamma_g_sparse[i,]/sqrt(Cov_gamma_g_sparse[i,i]))
 }
 r_squared_g_sparse <- round(100*r_squared_g_sparse,2)
 
-
-gamma_g_sparse <- theta_sparse%*% gamma
 df <- data.frame(Factor = paste0("PC",1:9),
                  gamma_g = round(gamma_g_sparse,4),
-                 R_g_squared = paste0(r_squared_g_sparse,"%"))
+                 R_g_squared = paste0(r_squared_g_sparse,"%"), t_stat = round(t_stat_g_sparse, 3))
 kable(df, caption = "Estimators of the risk premia for the sparse PCA", row.names = F)
 ```
 
