@@ -1,0 +1,858 @@
+---
+title: "Macro ML"
+author: "Jean-Galaad BARRIERE, Flavien GERVOIS"
+date: "15/01/2022"
+output:
+  html_document:
+    df_print: paged
+editor_options:
+  makdown:
+    wrap: 72
+bibliography: references.bib
+---
+
+# Introduction
+
+In financial econometrics, numerous approaches have been developed to
+explain the returns of assets. It is often assumed that the excess
+returns (i.e. the difference between the actual returns and the
+risk-free rate) are related to a given set of factors. The exposition of
+an asset to a factor must be compensated by a \`\`risk premium".
+Therefore, the excess return of an asset depends on those risk premia
+multiplied by the exposition of the asset to each of the factors.
+
+A key issue of financial factor models resides in the choice of the
+factors. Various models have been developed, using different sets of
+factors. For instance, the Fama-French three-factor model is based on
+market excess return, outperformance of small versus big companies and
+outperformance of high book-to-market versus low book-to-market
+companies.
+
+Macroeconomic variables can also be used in asset pricing models. As
+already shown in the literature[^1], some macroeconomic variables could
+generate risk premia. To illustrate, an asset which is more exposed to
+industrial production growth, inflation or housing construction index
+might command a higher return. Indeed, assuming that an investor wants
+to hold a well-diversified portfolio, he might be less interested in
+holding assets whose returns are highly correlated with the global state
+of the economy.
+
+[^1]: See for example [@chen1986]
+
+Nonetheless, the difficulty lies in the identification of the relevant
+macroeconomic variables among a very large set of macroeconomic
+indicators. Some previous papers have arbitrarily chosen a number of
+macroeconomic variables. Selecting a few relevant explanatory variables
+among a large set of variables is typically a problem which can be
+solved using machine learning techniques. In this paper, we present and
+replicate a recent article by David Rapach and Guofu Zhou[@rapach2018],
+which uses some of those techniques. Their paper (to which we will refer
+as \`\`the original article" in this document) innovates by using
+machine learning techniques so as to construct a few factors out of a
+large set of macroeconomic variables. The central ML technique used here
+is **sparse Principal Component Analysis** (PCA). As we will see below,
+the main advantage of sparse PCA over PCA lies in the interpretability
+of the factors.
+
+
+The article compares the performance of conventional PCA and sparse PCA
+in asset return factor models. It begins by applying conventional and
+sparse PCA to a large set of macroeconomic variables. Once the principal
+components are extracted, they are used as factors in asset pricing
+models. The goal is to determine whether those factors are relevant and
+whether they generate significant risk premia. The estimation of the of
+the risk premia uses the **three-pass methodology** developed by Giglio
+and Xiu [@assetpr]. Their methodology is designed to compute unbiased
+risk premia estimates under omission of relevant risk factors and
+measurement error. The concern about factor omission is indeed well
+founded. If we assume that the asset excess returns are only determined
+by the macro factors derived from the PCA, we might omit other relevant
+factors. The three-pass methodology solves this problem.
+
+The empirical results of the article demonstrate that sparse PCA is a
+valuable machine learning techniques. In comparison to conventional PCA,
+sparse PCA leads to a a significant increase in the interpretability of
+the factors, without losing much in terms of explaining the total
+variations of the macroeconomic variables. Furthermore, some of the
+macro factors generate significant risk premia, while this is not the
+case of the conventional macro factors.
+
+In the following sections, we present and replicate the different steps
+of the article of Rapach and Zhou, and then extend some of their
+results.
+
+# PCA and Sparse PCA
+
+The central machine learning technique presented in this paper is the
+sparse PCA. It is an extension of the Principal Component Analysis in
+which the weight vectors are sparse. As a consequence, each principal
+component is a linear combination of a small number of variables. The
+degree of sparsity can be adjusted by a shrinkage parameter. The main
+advantage of this technique lies in interpretability. It is actually
+much easier to give an economic interpretation to a linear combination
+or a handful of economic variables than to to a linear combination of
+more than a hundred variables. For instance, if a PC is built out of a
+few price indices, we can interpret it as an index of inflation.
+
+We perform both conventional and sparse PCA on a set of 120
+macroeconomic variables from the FRED-MD database[^2]. Those variables
+cover various categories: output and income, labor market, housing,
+consumption, money and credit, interest and exchanges rates, and prices.
+Here are some examples of macroeconomic variables: real personal income,
+industrial production indices, civilian unemployment, number of
+employees by sector, number of housing permits, M1 money stock,
+commercial and industrial loans, fed fund rates, consumer price indices.
+
+[^2]: Downloaded from
+    <https://research.stlouisfed.org/econ/mccracken/fred-databases/>
+
+## Initial treatment of the variables
+
+Before performing the sparse PCA, following Rapach and Zhou, we need to
+apply some treatments to the variables. They transform the variables to
+render them stationary and to take into account lags in the reporting.
+Their appendix precisely presents the indicates the treatments to
+achieve stationarity. They give less details on the treatment related to
+the lags (and do not list the variables which are reported with a
+two-month lag). We are nonetheless confident that our treatments are
+really close to the ones they perform.
+
+We use a csv file on which we reported metadata on the FRED-MD
+macroeconomic variables, in particular : whether they should be included
+in the analysis, what transformation should be performed on them (log,
+log growth, difference) and whether they have to be lagged. These
+indications come from ***Table 1*** of the article. After selecting the
+relevant variables and performing the transformations, we restrict the
+dataset to the time period considered (1960:02 to 2019:12)
+
+```{r, message=F}
+library(dplyr)
+
+#importation of FRED data
+file <- "data/2020-11.csv" 
+data0 <- read.csv(file = file)
+
+x <- data0$sasdate
+# we drop the rows which have no date
+data1 <- data0[(x!="Transform:" & nchar(x)>2),]
+y<-data1[,1]
+
+# extraction of variable names
+varnames <- data.frame("FRED_ticker"=colnames(data1)[-1])
+write.csv(varnames, "varnames.csv", row.names = F)
+
+# Importation of csv file with variables metadata
+df <- read.csv("data/variables.csv",sep=";")
+# Selection of relevant variables
+df <- filter(df,Inclusion==1)
+var <- df$FRED_ticker
+var <- c("sasdate", var)
+data <- data1[var]
+
+# Transformation of the time series
+var_names <- colnames(data)
+for(i in 2:length(var_names)){ # exclusion of 1st column (date)
+  variable <- var_names[[i]]
+  transfo <- df$Transformation[df$FRED_ticker==variable]
+  no_lag <- df$No_lag[df$FRED_ticker==variable]
+  if(!is.null(transfo)){
+    if(transfo=="Log"){
+      data[,i]<-log(data[,i])
+    }
+    if(transfo=="Difference"){
+      data[,i]<-c(NA, diff(data[,i])) # length is decreased by 1 when we take the difference
+    }
+    if(transfo=="Log growth"){
+      tmp <- data[,i]
+      tmp <- tmp/lag(tmp)
+      tmp<-log(tmp)
+      data[,i]<-c(tmp) # length is decreased by 1 when we take the difference
+    }
+    if(no_lag==0){
+      data[,i]<-c(0,data[-nrow(data),i])
+    }
+  }
+}
+
+## Time interval
+data$sasdate<-as.Date(data$sasdate, format = "%m/%d/%Y") # conversion to date
+data <- filter(data, sasdate>="1960-02-01" & sasdate<"2020-01-01")
+
+### Saving to RDS
+saveRDS(data, "data/FRED_data.rds")
+```
+
+## PCA
+
+We first perform of conventional PCA on the 120 variables, and select 9
+components. We use the same package as the authors
+
+```{r, message=F}
+library(FactoMineR)
+library(knitr)
+
+data <- readRDS("data/FRED_data.rds")
+
+data0 <- dplyr::select(data, -1) # we drop the date column
+
+# replacement of the NAs
+tmp<- data0[,67]
+tmp[is.na(tmp)]<-mean(tmp,na.rm = T)
+data0[,67]<-tmp
+#sum(is.na(data0)) #control absence of NA
+
+## PCA :
+pca <- PCA(data0, ncp=9, graph=F)
+pca_v2 <- PCA(data0, ncp=15, graph=F)
+table1 <- pca$eig
+table1 <- round(table1,2)
+```
+
+```{r}
+kable(table1[1:9,], caption = "First 9 components of the PCA")
+```
+
+The first nine conventional PCs collectively explain `r table1[9,3]`% of
+the total variation in the macroeconomic variables.
+
+The outcome of our PCA is somewhat different from the results presented
+in the article. Indeed, the weights of the components are different.
+This can be explained by modifications of the FRED-MD data between the
+redaction of the paper on our replication. We noticed that some
+variables do not have exactly the same name in our version of the FRED
+data and in the original article. Despite these differences, we are
+reassured by the fact that in the original article, the first nine PCs
+collectively explain 57% of the total variation.
+
+We plot the principal components that we extracted from the 120 FRED-MD
+macroeconomic variables, as the authors do in **Figure 1** of their
+article. Our plots are very similar, except for the sign of PC7.
+
+```{r, fig.height=7, fig.cap="Conventional principal components"}
+pca_ts <- ts(data=pca$ind$coord, start = c(1960,1), frequency=12)
+par(mfrow = c(3, 3), mar = c(5.1, 4.1, 4.1, 2.1))
+
+for(i in 1:9){
+  plot(pca_ts[,i],
+       main = paste0("PC",i),
+       ylab="")
+}
+sd_pc <- sapply(as.data.frame(pca$ind$coord),sd)
+```
+
+## Sparse PCA
+
+We now perform a sparse PCA, using the same R package as the authors.
+Before running the `SPC` function, we scale the variables (so that they
+have a unit variance). In the article, the authors set the shrinkage
+parameter so that only 108 weights are active. We set the parameter
+`sumabsv` to 3 to get a similar outcome. The `SPC()` function is used to
+calculate the weights of the sparse PCs. We use those weights to compute
+the sparse macro variables by multiplying the initial scaled macro
+variables by the matrix of the weights. The result is stored in the
+variable `u`.
+
+```{r, message=F}
+library(PMA)
+
+data_unscaled <- as.matrix(data0)
+data0<-as.matrix(data0)
+data0<-scale(data0) # we scale variables
+spca <- SPC(data0,sumabsv = 3, K=9, trace=F)
+weights <- spca$v
+row.names(weights)<- colnames(data0)
+sum(weights!=0)
+
+# Percentage of variance
+components <- paste0("comp ", 1:9)
+table2 <- data.frame(Component = components, 
+                     Cumulative_percentage_of_variance = spca$prop.var.explained)
+table2<-mutate(table2, 
+               Cumulative_percentage_of_variance = round(100*Cumulative_percentage_of_variance,2))
+kable(table2, caption = "First 9 components of the SPCA")
+```
+
+The result of our sparse PCA is quite satisfactory, insofar as they are
+very similar to those represented in the article. As in the article, the
+nine components of the PCA explain 46% of the total variation in the 120
+macroeconomic variables.
+
+### Interpretation of the sparse factors
+
+Looking at the active weights, we can try to give an economic
+interpretation to the sparse PCs. In the table below, we indicate the
+macro variables whose weights are active in the computation of each
+sparse PC. The weights that we computed do not exactly match those
+presented in ***Table 3*** of the original article. Nevertheles, based
+on the table below, we can give our sparse PC the same interpretation as
+Rapach and Zhou, except for the ninth component. For the latter, the
+weights of the ninth component diverge too much from those of the
+original article (only 3 common active variables). In our results, it is
+difficult to interpret this component as an index of credit. We
+therefore keep the name "SPC 9".
+
+```{r}
+#### Identification of active weights
+component_names <- c("Yields","Production", "Inflation", "Housing", "Spreads", "Employment", "Costs", "Money", "SPC9")
+active_weights<-rep("", 9)
+for(i in 1:9){
+  active_weights[i] <- paste0(row.names(weights)[weights[,i]!=0], collapse = " ; ")
+}
+active_weights_df <- data.frame(Sparse_Component = 1:9, 
+                                Component_name = component_names,
+                                Active_weights = active_weights)
+kable(active_weights_df, caption = "Active weights of the sparse PCs")
+```
+
+The interpretation of the sparse PCs is confirmed by looking at their
+plots. We note that for some of our PCs, the sign is opposite to the one
+found in the original article, notably for yields and housing. Apart
+from those sign differences, our plots are very close to the ones in
+***Figure 2*** of the original article (except, once again, for the
+ninth component). On the plots below, we clearly see the (opposite) of
+the bust of the housing bubble and the sharp fall in employment during
+the 2008 economic crisis.
+
+```{r, fig.height=7, fig.cap="Sparse principal components"}
+#u <- scale(spca$u)*sd_pc
+v<-spca$v
+u<-data0%*%v
+
+spca_ts <- ts(data=u, start = c(1960,1), frequency=12)
+par(mfrow = c(3, 3), mar = c(5.1, 4.1, 4.1, 2.1))
+for(i in 1:9){
+  plot(spca_ts[,i],
+       main = component_names[i],
+       ylab="")
+}
+
+```
+
+## Innovations to the PCs
+
+The set of macro factors used in the rest of the article is composed of
+the innovations to the principal components which have been extracted by
+the PCA. The innovations are computed by running a first-order vector
+autoregression (VAR(1)) on the principal components. For both the
+conventional and sparse PCAs, we run a VAR(1) on the PCs, we compute the
+residuals (which correspond to the innovations) and we then compute the
+correlations between those residuals. As noted by the authors, even
+though the PCs are by construction orthogonal to each other, this is not
+necessarily the case for their innovations.
+
+### Conventional PCA
+
+For the conventional PCA, the coordinates of each of the 120
+macroeconomic variables in the space of the 9 PCs are stored in
+`pca$ind$coord` . We use the package `vars` to run the VAR(1).
+
+
+```{r, message=F}
+library(vars)
+data_pca <- pca$ind$coord
+data_pca_v2 <- pca_v2$ind$coord
+row.names(data_pca) <- data$date
+ar_pca <- VAR(data_pca, p=1)
+ar_pca_v2 <- VAR(data_pca_v2, p=1)
+correlations_pca <- round(cor(residuals(ar_pca)),2)
+kable(correlations_pca, caption = "Innovation correlations to conventional PCs")
+```
+
+The results of this correlation matrix are very close to the one
+displayed in **Table 4** of the original article.
+
+### Sparse PCA
+
+We follow the same method with the sparse PCA. The coordinates of each
+of the 120 macroeconomic variables in the space of the 9 sparse PCs are
+stored in the variable `u`.
+
+```{r}
+data_spca <- u
+row.names(data_spca) <- data$date
+colnames(data_spca) <- component_names
+ar_spca <- VAR(data_spca, p=1)
+correlations_spca <- round(cor(residuals(ar_spca)),2)
+kable(correlations_spca, caption = "Innovation correlations to sparse PCs")
+```
+
+Once again, our results look very close to those of the original
+article, except for the ninth sparse PC. As noted above, due to
+differences in signs, some elements of our correlation matrix have the
+opposite signs of those presented in the original article.
+
+# Risk premia estimates
+
+In this section, we estimate the risk premia of the conventional and
+sparse macro factors derived in the preceding section. The objective is
+to determine whether some of the macro factors generate some significant
+risk premia. The computation uses the three-pass-methodology developed
+by [@assetpra].
+
+## Portfolio data
+
+[ A rédiger ]
+
+We import the data on portfolio returns and keep the same time period as
+the authors (1963:07 to 2019:12).
+
+We need to compute the excess returns of each portfolios. This requires
+data on the risk-free rate at every period in time. The authors use the
+CRSP risk-free return. However, as these data are not freely available,
+we replace the risk-free rate by TB3MS variable from FREDMD (3-Month
+Treasury Bill Secondary Market Rate, Discount Basis).
+
+We run a PCA of the excess returns of our portfolios, to estimated the
+rotated fundamental factors (denoted `ksi`)
+
+The last step is to run a time-series regression of the observed factors
+on the rotated fundamental factors.
+
+Importation of asset returns
+
+```{r}
+R <- readRDS("data/portfolios.rds")
+R <- filter(R, date<='2019-12-01')
+dates <- R$date
+R<-dplyr::select(R,-1)
+
+data_rf <- read.csv(file = "data/TB3MS.csv")
+data_rf <- dplyr::select(data_rf, -1) # we remove the date
+for (i in 1:ncol(R)){
+  R[,i] <- as.numeric(R[,i]) - data_rf[,1]
+}
+R <- t(R)
+```
+
+## Three-pass methodology
+
+We assume that the underlying model for the asset excess returns is the
+following :
+
+$$\boldsymbol{r_t} =  \boldsymbol{\beta} '\boldsymbol{\gamma}+\boldsymbol{\beta}' \boldsymbol{\xi_t} + \boldsymbol{\varepsilon_t}$$
+
+Where $\boldsymbol{\xi_t}$ is the K-vector of unobserved fundamental
+factor innovations, **[etc., à rédiger]**
+
+The motivation for the three-pass methodology is to avoid omitted factor
+biases. The intuitive way to estimate the risk premia generated by our
+set of macro factors would be to use the following model :
+
+$$\boldsymbol{r_t} =  \boldsymbol{\alpha}+ \boldsymbol{\beta} '\boldsymbol{\gamma_g}+\boldsymbol{\beta}' \boldsymbol{g_t} + \boldsymbol{\varepsilon_t}$$
+
+Where $\boldsymbol{g_t}$ are the macro factors (i.e. the innovations to
+the PCs) and $\boldsymbol{\gamma_g}$ the risk premia. The risk premia
+would then be estimated by a simple two-pass methodology. However, such
+estimates would be biased due to potential omitted variables. By using
+the property of rotation invariance, the three-pass methodology makes it
+possible to derive unbiased estimates of the risk premia.
+
+The methodology consists in three steps which are precisely described
+below.
+
+### Step 1 : PCA on excess returns
+
+The first step consists in applying conventional PCA to demeaned excess
+returns for the N test assets. We therefore estimate the rotated
+fundamental factors $\boldsymbol{\tilde\xi_t}$.
+
+```{r}
+
+r_t <- t(R) # excess returns, one row per date
+r_t_demeaned <- r_t-colMeans(r_t)
+
+r_pca <- PCA(r_t_demeaned, ncp=15, graph=F, scale.unit = TRUE)
+ksi <- r_pca$ind$coord #rotated factors
+```
+
+### Step 2 : Time series and cross-sectional regressions
+
+In the second step, we run a time-series regressions of r on $\Xi$ to estimate $\beta$. We can then run a cross-sectional regression of $\bar{r}$ on the columns of $\beta$ to estimate $\tilde{\gamma}$.
+
+```{r}
+library(forecast) #used for TS regression
+lm_step2 <- tslm(ts(r_t)~ts(ksi)) #without constant
+
+beta <- t(lm_step2$coefficients)
+beta <- beta[,-1] # we drop the constant
+
+r_bar <- colMeans(t(R)) #average return
+lm_step2_CS <- lm(r_bar~beta+0) # no intercept in the model (equation 3.3)
+
+gamma <- matrix(coefficients(lm_step2_CS)) # without the constant
+```
+
+### Step 3 : Regressions of macro factors on asset return PCs
+
+In this final third step we run a time-series regression of $g$ on $\tilde{\Xi}$ to estimate $\tilde{\Theta}$.
+
+
+```{r}
+# we restrict the observed factors to the good time period
+dates_pca <- data$sasdate
+# we drop the first element of res (ar(1) has one obs less)
+indices_dates <- dates_pca>="1963-07-01" & dates_pca<= "2019-12-01"
+
+# residuals of the VAR(1)
+g_t_conv <- ts(residuals(ar_pca)[indices_dates[-1],])
+
+lm_factors_conv <- lm(g_t_conv~ts(ksi)) # without constant (equation 3.2)
+theta_conv <- t(coefficients(lm_factors_conv))
+theta_conv <- theta_conv[,-1]
+```
+
+And now, we can estimate $\gamma_g$ as the product of $\hat{\tilde{\Theta}}$ and $\hat{\tilde{\gamma}}$.
+
+
+```{r}
+gamma_g_conv <- theta_conv %*% gamma
+```
+
+
+Calculation of the Covariance matrix
+
+In order to calculate the $t_{stat}$, we need the Covariance matrix of $\hat{\gamma_g}$. This can't be obtained easily, since $\hat{\gamma_g}$ is the product of two estimators ($\hat{\Theta}$ and $\hat{\gamma}$). The paper doesn't explain how they calculated the $t_{stat}$. But the cited paper "Asset Pricing with Omitted Factors" (2019) from Giglio and Xiu which does it. 
+They found an asymptotic estimator of the Covariance matrix, which can be estimated with the following:
+
+$$\hat{Cov(\hat{\gamma_g})} = Mat. \hat{\Pi}_{11}.Mat^T + Mat.\hat{\Pi}_{12}.\hat{\Theta}^T + \hat{\Theta}.\hat{\Pi}_{21}.Mat^T + \hat{\Theta}.\hat{\Pi}_{22}.\hat{\Theta}^T$$
+Considering with $\hat{\Sigma}^v = \Xi \Xi^T$
+$$Mat^T = (\hat{\gamma}^T . (\hat{\Sigma}^v)^{-1} \otimes I_d)$$
+And here, $\hat{\Pi}_{21} = \hat{\Pi}_{12}^T$, and $\hat{\Pi}_{11}$, $\hat{\Pi}_{12}$ and $\hat{\Pi}_{22}$ are the HAC estimators of Newey and West (1987). They can account for heterogeneity and autocorrelation standard error.
+
+The common libraries used to calculate it doesn't work here, we had to calculate them by ourselves, using the definitions given in the paper.
+
+```{r}
+library(matrixcalc)
+V <- t(ksi) 
+sigma_v <- V%*%t(V)
+Z <- t(g_t_conv) - (theta_conv) %*% V
+
+#First, we calculate the Newey West estimators
+Pi_11 <- matrix(0,135,135)
+Ti <- ncol(Z)
+for (t in 1:Ti){Pi_11 <- Pi_11 + vec(Z[,t]%*%t(V[,t]))%*%t(vec(Z[,t]%*%t(V[,t])))}
+#usually, the lag NW = 4, and then q+1=5
+for (m in 1:4){
+  for (t in (m+1):Ti){
+    Pi_11 <- Pi_11 + (1-m/5)*(vec(Z[,t-m]%*%t(V[,t-m])) %*% t(vec(Z[,t]%*%t(V[,t]))) + vec(Z[,t]%*%t(V[,t])) %*% t(vec(Z[,t-m]%*%t(V[,t-m]))))
+  }
+}
+Pi_11 <- Pi_11/Ti
+
+Pi_12 <- matrix(0,135,15)
+for (t in 1:Ti){Pi_12 <- Pi_12 + vec(Z[,t]%*%t(V[,t]))%*%V[,t]}
+for (m in 1:4){
+  for (t in (m+1):Ti){
+    Pi_12 <- Pi_12 + (1-m/5)*(vec(Z[,t-m]%*%t(V[,t-m])) %*% V[,t] + vec(Z[,t]%*%t(V[,t])) %*% V[,t-m])
+  }
+}
+Pi_12 <- Pi_12/Ti
+
+Pi_21 <- matrix(0,15,135)
+for (t in 1:Ti){Pi_21 <- Pi_21 + V[,t] %*% t(vec(Z[,t]%*%t(V[,t]))) }
+for (m in 1:4){
+  for (t in (m+1):Ti){
+    Pi_21 <- Pi_21 + (1-m/5)*(V[,t-m] %*% t(vec(Z[,t]%*%t(V[,t]))) + V[,t] %*% t(vec(Z[,t-m]%*%t(V[,t-m]))))
+  }
+}
+Pi_21 <- Pi_21/Ti
+
+Pi_22 <- matrix(0,15,15)
+for (t in 1:Ti){Pi_22 <- Pi_22 + V[,t]%*%t(V[,t])}
+for (m in 1:4){
+  for (t in (m+1):Ti){
+    Pi_22 <- Pi_22 + (1-m/5)*(V[,t-m] %*% t(V[,t]) + V[,t] %*% t(V[,t-m]))
+  }
+}
+Pi_22 <- Pi_22/Ti
+
+#Now, we calculate the asymptotic covariance matrix
+Mat <- t(kronecker(t(gamma) %*% solve(sigma_v), diag(9), FUN = "*"))
+
+Cov_gamma_g_conv <- t(Mat) %*% Pi_11 %*% Mat + t(Mat) %*% Pi_12 %*% t(theta_conv) + theta_conv %*% Pi_21 %*% Mat + theta_conv %*% Pi_22 %*% t(theta_conv)
+```
+
+
+Now, we can calculate the $R_g^2$ and the $t_{stat}$ as the paper did.
+The $t_{stat}$ are calculated with the formula $$t_{\hat{\gamma_{gi}}} = \frac{\hat{\gamma_{gi}} - \bar{\gamma_g}}{se(\hat{\gamma_{gi}})}$$ with $\bar{\gamma_g}=0$, and with $se(\hat{\gamma_{gi}})$ calculated with the Covariance matrix we now have.
+
+
+```{r}
+# Computation of the Rg² and the t_stat
+r_squared_g_conv <- vector()
+t_stat_g_conv <- vector()
+for(i in 1:9){
+  lm_tmp <- lm(g_t_conv[,i]~ksi)
+  r_squared_g_conv<-c(r_squared_g_conv, summary(lm_tmp)$r.squared)
+  t_stat_g_conv <- c(t_stat_g_conv, gamma_g_conv[i,]/(Cov_gamma_g_conv[i,i]))
+}
+r_squared_g_conv <- round(100*r_squared_g_conv,2)
+```
+
+### Estimation results
+
+#### Conventional PCA
+
+We can now print our estimations in the conventional PCA case. We are not far away from the results of the paper for all $\hat{\gamma_g}$, $R_g^2$ and the t-stats. The paper founded very low significance through the t-stat, with only one beeing significant at the 10% level, we don't have any significant, but the values remain closed.
+
+```{r}
+df <- data.frame(Factor = paste0("PC",1:9),
+                 gamma_g = round(gamma_g_conv,3),
+                 R_g_squared = paste0(r_squared_g_conv,"%"), t_stat = round(t_stat_g_conv,3))
+
+kable(df, caption = "Estimators of the risk premia for the conventional PCA", row.names = F)
+```
+
+#### Sparse PCA
+
+We now do the same with the vectors obtained with the sparse PCA. The coefficients are once again not far away from the paper. In particular, this time the first component is significantly non nul ($t=-2,4$). One other component has a t-value of $1.9$. We can see, along with the paper, that the sparse PCA leads to higher absolute values for the t-stats, thus better significance of our variables.
+
+```{r}
+g_t_sparse <- ts(residuals(ar_spca)[indices_dates[-1],])
+lm_factors_sparse <- tslm(g_t_sparse~ts(ksi)) # without constant (equation 3.2)
+theta_sparse <- t(coefficients(lm_factors_sparse))
+theta_sparse <- theta_sparse[,-1]
+
+Z <- t(g_t_sparse) - theta_sparse %*% V
+
+#First, we calculate the Newey West estimators
+Pi_11 <- matrix(0,135,135)
+Ti <- ncol(Z)
+for (t in 1:Ti){Pi_11 <- Pi_11 + vec(Z[,t]%*%t(V[,t]))%*%t(vec(Z[,t]%*%t(V[,t])))}
+#usually, the lag NW = 4, thus q+1=5
+for (m in 1:4){
+  for (t in (m+1):Ti){
+    Pi_11 <- Pi_11 + (1-m/5)*(vec(Z[,t-m]%*%t(V[,t-m])) %*% t(vec(Z[,t]%*%t(V[,t]))) + vec(Z[,t]%*%t(V[,t])) %*% t(vec(Z[,t-m]%*%t(V[,t-m]))))
+  }
+}
+Pi_11 <- Pi_11/Ti
+
+Pi_12 <- matrix(0,135,15)
+for (t in 1:Ti){Pi_12 <- Pi_12 + vec(Z[,t]%*%t(V[,t]))%*%V[,t]}
+for (m in 1:4){
+  for (t in (m+1):Ti){
+    Pi_12 <- Pi_12 + (1-m/5)*(vec(Z[,t-m]%*%t(V[,t-m])) %*% V[,t] + vec(Z[,t]%*%t(V[,t])) %*% V[,t-m])
+  }
+}
+Pi_12 <- Pi_12/Ti
+
+Pi_21 <- matrix(0,15,135)
+for (t in 1:Ti){Pi_21 <- Pi_21 + V[,t] %*% t(vec(Z[,t]%*%t(V[,t]))) }
+for (m in 1:4){
+  for (t in (m+1):Ti){
+    Pi_21 <- Pi_21 + (1-m/5)*(V[,t-m] %*% t(vec(Z[,t]%*%t(V[,t]))) + V[,t] %*% t(vec(Z[,t-m]%*%t(V[,t-m]))))
+  }
+}
+Pi_21 <- Pi_21/Ti
+
+Pi_22 <- matrix(0,15,15)
+for (t in 1:Ti){Pi_22 <- Pi_22 + V[,t]%*%t(V[,t])}
+for (m in 1:4){
+  for (t in (m+1):Ti){
+    Pi_22 <- Pi_22 + (1-m/5)*(V[,t-m] %*% t(V[,t]) + V[,t] %*% t(V[,t-m]))
+  }
+}
+Pi_22 <- Pi_22/Ti
+
+#Now, we calculate the asymptotic covariance matrix
+Mat <- t(kronecker(t(gamma) %*% solve(sigma_v), diag(9), FUN = "*"))
+
+Cov_gamma_g_sparse <- t(Mat) %*% Pi_11 %*% Mat + t(Mat) %*% Pi_12 %*% t(theta_sparse) + theta_sparse %*% Pi_21 %*% Mat + theta_sparse %*% Pi_22 %*% t(theta_sparse)
+
+gamma_g_sparse <- theta_sparse%*% gamma
+r_squared_g_sparse <- vector()
+t_stat_g_sparse <- vector()
+
+for(i in 1:9){
+  lm_tmp <- lm(g_t_sparse[,i]~ksi)
+  r_squared_g_sparse<-c(r_squared_g_sparse, summary(lm_tmp)$r.squared)
+  t_stat_g_sparse <- c(t_stat_g_sparse, gamma_g_sparse[i,]/(Cov_gamma_g_sparse[i,i]))
+}
+r_squared_g_sparse <- round(100*r_squared_g_sparse,2)
+
+df <- data.frame(Factor = paste0("PC",1:9),
+                 gamma_g = round(gamma_g_sparse,4),
+                 R_g_squared = paste0(r_squared_g_sparse,"%"), t_stat = round(t_stat_g_sparse, 3))
+kable(df, caption = "Estimators of the risk premia for the sparse PCA", row.names = F)
+```
+
+# Extensions
+
+## Biases without the three-pass methodology
+
+***What happens if we do not use the 3-pass methodology?***
+
+The motivation for using the three-pass methodology is to avoid
+potential omitted factors bias. We now study whether this concern is
+relevant, i.e. whether there is evidence of such biases. To achieve
+this, we estimate the risk premia with a simple two-pass methodology,
+and then compare our results to the outcome of the three-pass
+methodology.
+
+Let us therefore assume that the true model for asset returns only
+depends on our macro factors :
+
+$\boldsymbol{r_t} = \boldsymbol{\alpha}+ \boldsymbol{\beta} '\boldsymbol{\gamma}+\boldsymbol{\beta}' \boldsymbol{g_t} + \boldsymbol{\varepsilon_t}$
+
+Where $\boldsymbol{g_t}$ are the macro factors (i.e. the innovations to
+the PCs) and $\boldsymbol{\gamma}$ the risk premia.
+
+If this assumption is true, then we can derive unbiased estimates of the
+risk premia with a two-pass methodology. This methodology consists in
+two steps :
+
+1.  Time series regression of the demeaned asset excess returns on the
+    innovations to the macro factors, to estimate the risk exposures of
+    each asset ($\boldsymbol\beta$)
+
+2.  Cross-sectional regression of the average returns of each asset on
+    the asset' risk exposures to estimate the risk premia
+    ($\boldsymbol\gamma$)
+
+We run this estimation on the macro factors obtained with the
+conventional PCA, and then on the sparse macro factors.
+
+#### Conventional PCA
+
+Importation of returns
+
+`g_t_conv`correspond to the conventional macro factors, i.e. the
+innovatiopns to the conventional PCs.
+
+```{r}
+R <- readRDS("data/portfolios.rds")
+R <- filter(R, date<='2019-12-01')
+dates <- R$date
+R<-dplyr::select(R,-1)
+
+data_rf <- read.csv(file = "data/TB3MS.csv")
+data_rf <- dplyr::select(data_rf, -1) # we remove the date
+for (i in 1:ncol(R)){
+  R[,i] <- as.numeric(R[,i]) - data_rf[,1]
+}
+
+r_t <- R 
+
+r_t <- ts(R) # excess returns
+
+#R_d <- R-t(as.matrix(colMeans(R))) # excess returns
+```
+
+```{r}
+## TS regression
+g_t_conv <- ts(residuals(ar_pca)[indices_dates[-1],])
+
+lm_pca <- tslm(r_t~g_t_conv)
+beta <- t(lm_pca$coefficients)
+
+beta <- beta[,-1]#we drop the constants
+
+# CS regression
+r_bar <- colMeans(R)
+
+lm_pca_2 <- lm(r_bar~beta)
+summary(lm_pca_2)
+kable(coefficients(lm_pca_2))
+```
+
+#### Sparse PCA
+
+```{r}
+g_t_sparse <- ts(residuals(ar_spca)[indices_dates[-1],])
+
+lm_spca <- tslm(r_t~g_t_sparse)
+beta_s <- t(lm_spca$coefficients)
+beta_s <- beta_s[,-1]#we drop the constants
+
+
+lm_spca_2 <- lm(r_bar~beta_s)
+summary(lm_spca_2)
+```
+
+Even though those estimates are biased, we find that the sparse
+components 1 and 4 (yield and housing) generate significant risk premia.
+This result is consistent with the result of the original article.
+
+## Very sparse PCA
+
+Replication with a different shrinkage parameter so as to select only
+one or two variables by PC.
+
+
+## Overcome the linearity in the modelisation
+
+***What happens if we get rid of the linearity assumption?***
+
+The modelisation adopted in the paper, leading to the three-steps methodology, is based on two equations: $r_t = \beta'.\gamma + \beta'.\xi_t + \epsilon_t, (1)$ giving $r_t = \tilde{\beta}'.\tilde{\gamma} + \tilde{\beta}'.\tilde{\xi_t} + \epsilon_t, (1bis)$ and $\bar{g_t} = \Theta'.\xi_t + \zeta_t, (2)$ giving $\bar{g_t} = \tilde{\Theta}'.\tilde{\xi_t} + \zeta_t, (2bis)$, where $\bar{g_t} = g_t - \delta$. The meaning of the first equation is simply that we extracted a new base $\Xi$ with a PCA on the $(r_t)_{i}$, and now we express the $(r_t)_i$ in the firsts components of this regression.
+
+But the idea of the second regression is way more questionable: we aim to express the obervable factors $(g_t)_i$ in the base $\Xi$. And $\Theta$ is then the base change matrix. But this has nothing evident: it only has a sens if we consider, either that the $(g_t)_i$ are very closed from one an other, either that the "true" function linking the $(g_t)_i$ with the excess returns $(r_t)_t$ is linear (the base $\Xi$ is build on linear combinations of $(r_t)_i$). 
+
+Therefore the idea: we should try a non linear approach to link $(g_t)_i$ and $(r_t)_i$. In the three-steps method, for identification issues we considered the rotated variables $\tilde{\Xi}$ which is a linear transformation.
+
+Since we do not have a lot of data at our disposal, we should keep using the few vectors of the base $\Xi$ instead of the many vectors of $(r_t)_i$ to help our model to converg quicker. We can now write the new equation $(2')$ this way: $\bar{g_t} = \mathcal{F}(\xi_t) + z^*_t$ with $z^*_t$ the new residual. This leads to the equation we will use: $$\bar{g_t} = \tilde{\mathcal{F}}(\tilde{\xi_t}) + z^*_t (2bis')$$
+
+In this new modelisation, the desired $\gamma_g$ is now equal to $\bar{\gamma_g} = \tilde{\mathcal{F}}(\tilde{\gamma})$.
+
+In this precise case, we obviously have no model to prefer to model our observable $(g_t)_i$ based on $(r_t)_i$. Therefore we can't really choose a specific parametric modelization.
+
+Among all the non-parametric modelizations, we need one able to be able to return efficiently multidimensional output, since $(g_t)_i$ is multidimensional. One very efficient is the Vector Generalized Additive Model (VGAM). 
+
+We can then add a fourth step to the three-steps procedure, beeing: "Train a VAGM function on $g_t - \tilde{\Theta}'\tilde{\xi_t}$ and $\tilde{\xi_t}$ to obtain $\hat{\tilde{\mathcal{F}}} = \mathcal{F}_{VGAM}$".
+
+Since our data can take negative values, we had to choose a family function of probability working on $\mathbb{R}$. Therefore we don't use any inverse-gamma or such functions. After several tests, it appears that the gaussian function perform the best. Therefore we kept it.
+
+We ran 2 differents regressions, a "smooth" one and an noth-smooth. With the smooth regression, we authorize interpolation of degree 4 (the default value if we authorize it) on each $\tilde{\xi_t}$. Not in the other one. 
+
+```{r}
+library(VGAM)
+res <- data.frame(gt=g_t_conv, ksi=ksi)
+gamma_df <- data.frame(t(gamma))
+names(gamma_df) <- names(res)[10:24]
+
+gam_smooth<-vgam(cbind(gt.Dim.1, gt.Dim.2, gt.Dim.3, gt.Dim.4, gt.Dim.5, gt.Dim.6, gt.Dim.7, gt.Dim.8, gt.Dim.9)~ s(ksi.Dim.1)+s(ksi.Dim.2)+s(ksi.Dim.3)+ s(ksi.Dim.4)+s(ksi.Dim.5)+s(ksi.Dim.6)+ s(ksi.Dim.7)+s(ksi.Dim.8)+s(ksi.Dim.9)+s(ksi.Dim.10)+s(ksi.Dim.11)+s(ksi.Dim.12)+s(ksi.Dim.13)+s(ksi.Dim.14)+s(ksi.Dim.15), uninormal(), data=res)
+gamma_g_conv_VGAM_smooth <- as.matrix(predict(gam_smooth, gamma_df, type="response"))
+
+gam<-vgam(cbind(gt.Dim.1, gt.Dim.2, gt.Dim.3, gt.Dim.4, gt.Dim.5, gt.Dim.6, gt.Dim.7, gt.Dim.8, gt.Dim.9)~ (ksi.Dim.1)+(ksi.Dim.2)+(ksi.Dim.3)+ (ksi.Dim.4)+(ksi.Dim.5)+(ksi.Dim.6)+ (ksi.Dim.7)+(ksi.Dim.8)+(ksi.Dim.9)+(ksi.Dim.10)+(ksi.Dim.11)+(ksi.Dim.12)+(ksi.Dim.13)+(ksi.Dim.14)+(ksi.Dim.15), uninormal(), data=res)
+gamma_g_conv_VGAM <- as.matrix(predict(gam, gamma_df, type="response"))
+```
+
+We obtain values very closed to what the paper has and what we had previously, specially in the not-smooth regression. It enforces us in the idea that this method can work, also we don't have a lot of data to train our VGAM (T=678) (data on the next table).
+
+But we want to know how efficient our new algorithm is. We cannot express the t-stat as previously, because the formula we used for the covariances worked only under linearity assumptions. We could lineralise our $\hat{\mathcal{F}}_{VGAM}$ to obtain an estimate of $\hat{\tilde{\Theta}}$ and re-use the formule, but it wouldn't be very precise. And since $\gamma_g$ is a product, it seems that we can't obtain an easy estimate of the t-stat this time.
+
+However, we can assess the efficiency of this new method in the third step by looking at the mean squared residuals on each dimension.
+
+And we can see that although the  are more different on the smooth VGAM regression, the mean squared residuals are smaller, when they are the same between the not-smooth VGAM regression and the previous one (the version of the paper). This is a great improvement.
+
+```{r}
+MeanR2_VGAM_smooth <- colMeans(resid(gam_smooth)[,2*c(1:9)-1]**2)
+MeanR2_VGAM_ns <- colMeans(resid(gam)[,2*c(1:9)-1]**2)
+MeanR2_old <- colMeans(lm_factors_conv$residuals**2)
+
+df <- data.frame(G_1 = round(gamma_g_conv,2), MR2_1 = round(MeanR2_old,2), G_2 = round(gamma_g_conv_VGAM,2), MR2_2 = round(MeanR2_VGAM_ns,2), G_3 = round(gamma_g_conv_VGAM_smooth,2), MR2_3 = round(MeanR2_VGAM_smooth,2))
+
+kable(df, caption = "Comparaison of the differents methods for the third-step. 1: previous regression, 2: Not-smooth VGAM, 3: smooth VGAM", row.names = F)
+```
+
+We can now apply this new third step with the sparce PCA. Once again, we see that our smooth VGAM method performs better in term of mean square error, when the not-smooth VGAM method give almost the same result as the version of the paper.
+
+```{r}
+res <- data.frame(gt=g_t_sparse, ksi=ksi)
+gamma_df <- data.frame(t(gamma))
+names(gamma_df) <- names(res)[10:24]
+
+gam_smooth<-vgam(cbind(gt.Yields, gt.Production, gt.Inflation, gt.Housing, gt.Spreads, gt.Employment, gt.Costs, gt.Money, gt.SPC9)~ s(ksi.Dim.1)+s(ksi.Dim.2)+s(ksi.Dim.3)+ s(ksi.Dim.4)+s(ksi.Dim.5)+s(ksi.Dim.6)+ s(ksi.Dim.7)+s(ksi.Dim.8)+s(ksi.Dim.9)+s(ksi.Dim.10)+s(ksi.Dim.11)+s(ksi.Dim.12)+s(ksi.Dim.13)+s(ksi.Dim.14)+s(ksi.Dim.15), uninormal(), data=res)
+gamma_g_sparse_VGAM_smooth <- as.matrix(predict(gam_smooth, gamma_df, type="response"))
+
+gam<-vgam(cbind(gt.Yields, gt.Production, gt.Inflation, gt.Housing, gt.Spreads, gt.Employment, gt.Costs, gt.Money, gt.SPC9)~ (ksi.Dim.1)+(ksi.Dim.2)+(ksi.Dim.3)+ (ksi.Dim.4)+(ksi.Dim.5)+(ksi.Dim.6)+ (ksi.Dim.7)+(ksi.Dim.8)+(ksi.Dim.9)+(ksi.Dim.10)+(ksi.Dim.11)+(ksi.Dim.12)+(ksi.Dim.13)+(ksi.Dim.14)+(ksi.Dim.15), uninormal(), data=res)
+gamma_g_sparse_VGAM <- as.matrix(predict(gam, gamma_df, type="response"))
+
+MeanR2_VGAM_smooth <- colMeans(resid(gam_smooth)[,2*c(1:9)-1]**2)
+MeanR2_VGAM_ns <- colMeans(resid(gam)[,2*c(1:9)-1]**2)
+MeanR2_old <- colMeans(lm_factors_sparse$residuals**2)
+
+df <- data.frame(G_1 = round(gamma_g_sparse,2), MR2_1 = round(MeanR2_old,2), G_2 = round(gamma_g_sparse_VGAM,2), MR2_2 = round(MeanR2_VGAM_ns,2), G_3 = round(gamma_g_sparse_VGAM_smooth,2), MR2_3 = round(MeanR2_VGAM_smooth,2))
+
+kable(df, caption = "Comparaison of the differents methods for the third-step, with the Sparce PCA. 1: previous regression, 2: Not-smooth VGAM, 3: smooth VGAM, G: gamma_g, MR2: Mean Square Error", row.names = F)
+```
+# References
