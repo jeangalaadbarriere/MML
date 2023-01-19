@@ -256,7 +256,7 @@ library(PMA)
 data_unscaled <- as.matrix(data0)
 data0<-as.matrix(data0)
 data0<-scale(data0) # we scale variables
-spca <- SPC(data0,sumabsv = 3, K=9, trace=F)
+spca <- SPC(data0,sumabsv = 1, K=9, trace=F)
 weights <- spca$v
 row.names(weights)<- colnames(data0)
 sum(weights!=0)
@@ -291,7 +291,7 @@ therefore keep the name "SPC 9".
 
 ```{r}
 #### Identification of active weights
-component_names <- c("Yields","Production", "Inflation", "Housing", "Spreads", "Employment", "Costs", "Money", "SPC9")
+component_names <- c("Yields","Production", "Inflation", "Housing", "Spreads", "Employment", "Costs", "Money", "Credit")
 active_weights<-rep("", 9)
 for(i in 1:9){
   active_weights[i] <- paste0(row.names(weights)[weights[,i]!=0], collapse = " ; ")
@@ -314,6 +314,7 @@ the 2008 economic crisis.
 ```{r, fig.height=7, fig.cap="Sparse principal components"}
 #u <- scale(spca$u)*sd_pc
 v<-spca$v
+v[v==-1]<-1
 u<-data0%*%v
 
 spca_ts <- ts(data=u, start = c(1960,1), frequency=12)
@@ -672,7 +673,7 @@ for(i in 1:9){
 }
 r_squared_g_sparse <- round(100*r_squared_g_sparse,2)
 
-df <- data.frame(Factor = paste0("PC",1:9),
+df <- data.frame(Factor = component_names,
                  gamma_g = round(gamma_g_sparse,4),
                  R_g_squared = paste0(r_squared_g_sparse,"%"), t_stat = round(t_stat_g_sparse, 3))
 kable(df, caption = "Estimators of the risk premia for the sparse PCA", row.names = F)
