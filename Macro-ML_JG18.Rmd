@@ -1,7 +1,7 @@
 ---
 title: "Macroeconometrics and Machine Learning"
 author: "Jean-Galaad BARRIERE, Flavien GERVOIS"
-date: "19/01/2022"
+date: "19/01/2023"
 output: pdf_document
 editor_options:
   makdown:
@@ -45,7 +45,7 @@ indicators. Some previous papers have arbitrarily chosen a number of
 macroeconomic variables. Selecting a few relevant explanatory variables
 among a large set of variables is typically a problem which can be
 solved using machine learning techniques. In this paper, we present and
-replicate a recent article by David Rapach and Guofu Zhou[@rapach2018],
+replicate a recent article by David Rapach and Guofu Zhou [@rapach2018],
 which uses some of those techniques. Their paper (to which we will refer
 as \`\`the original article" in this document) innovates by using
 machine learning techniques so as to construct a few factors out of a
@@ -61,7 +61,7 @@ components are extracted, they are used as factors in asset pricing
 models. The goal is to determine whether those factors are relevant and
 whether they generate significant risk premia. The estimation of the of
 the risk premia uses the **three-pass methodology** developed by Giglio
-and Xiu [@assetpr]. Their methodology is designed to compute unbiased
+and Xiu [@giglio2021]. Their methodology is designed to compute unbiased
 risk premia estimates under omission of relevant risk factors and
 measurement error. The concern about factor omission is indeed well
 founded. If we assume that the asset excess returns are only determined
@@ -69,7 +69,7 @@ by the macro factors derived from the PCA, we might omit other relevant
 factors. The three-pass methodology solves this problem.
 
 The empirical results of the article demonstrate that sparse PCA is a
-valuable machine learning techniques. In comparison to conventional PCA,
+valuable machine learning technique. In comparison to conventional PCA,
 sparse PCA leads to a a significant increase in the interpretability of
 the factors, without losing much in terms of explaining the total
 variations of the macroeconomic variables. Furthermore, some of the
@@ -122,9 +122,9 @@ in the analysis, what transformation should be performed on them (log,
 log growth, difference) and whether they have to be lagged. These
 indications come from ***Table 1*** of the article. After selecting the
 relevant variables and performing the transformations, we restrict the
-dataset to the time period considered (1960:02 to 2019:12)
+dataset to the time period considered (1960:02 to 2019:12).
 
-```{r, message=F}
+```{r message=FALSE}
 library(dplyr)
 
 #importation of FRED data
@@ -159,13 +159,13 @@ for(i in 2:length(var_names)){ # exclusion of 1st column (date)
       data[,i]<-log(data[,i])
     }
     if(transfo=="Difference"){
-      data[,i]<-c(NA, diff(data[,i])) # length is decreased by 1 when we take the difference
+      data[,i]<-c(NA, diff(data[,i]))
     }
     if(transfo=="Log growth"){
       tmp <- data[,i]
       tmp <- tmp/lag(tmp)
       tmp<-log(tmp)
-      data[,i]<-c(tmp) # length is decreased by 1 when we take the difference
+      data[,i]<-c(tmp)
     }
     if(no_lag==0){
       data[,i]<-c(0,data[-nrow(data),i])
@@ -183,8 +183,8 @@ saveRDS(data, "data/FRED_data.rds")
 
 ## PCA
 
-We first perform of conventional PCA on the 120 variables, and select 9
-components. We use the same package as the authors
+We first perform a conventional PCA on the 120 variables, and select 9
+components. We use the same package as the authors.
 
 ```{r, message=F}
 library(FactoMineR)
@@ -292,7 +292,8 @@ therefore keep the name "SPC 9".
 
 ```{r}
 #### Identification of active weights
-component_names <- c("Yields","Production", "Inflation", "Housing", "Spreads", "Employment", "Costs", "Money", "SPC9")
+component_names <- c("Yields","Production", "Inflation", "Housing", "Spreads",
+                     "Employment", "Costs", "Money", "SPC9")
 active_weights<-rep("", 9)
 for(i in 1:9){
   active_weights[i] <- paste0(row.names(weights)[weights[,i]!=0], collapse = " ; ")
@@ -313,7 +314,6 @@ the bust of the housing bubble and the sharp fall in employment during
 the 2008 economic crisis.
 
 ```{r, fig.height=7, fig.cap="Sparse principal components"}
-#u <- scale(spca$u)*sd_pc
 v<-spca$v
 u<-data0%*%v
 
@@ -384,7 +384,7 @@ In this section, we estimate the risk premia of the conventional and
 sparse macro factors derived in the preceding section. The objective is
 to determine whether some of the macro factors generate some significant
 risk premia. The computation uses the three-pass-methodology developed
-by [@assetpra].
+by Giglio and Xiu.
 
 ## Portfolio data
 
@@ -403,8 +403,8 @@ rotated fundamental factors (denoted `ksi`)
 The last step is to run a time-series regression of the observed factors
 on the rotated fundamental factors.
 
-
 First, we import the asset return
+
 ```{r}
 R <- readRDS("data/portfolios.rds") 
 R <- filter(R, date<='2019-12-01')
@@ -469,7 +469,7 @@ $\boldsymbol{\tilde\xi_t}$ to estimate $\boldsymbol{\tilde\beta}$. We
 can then run a cross-sectional regression of $\bar{r}$ on the columns of
 $\boldsymbol{\tilde\beta}$ to estimate $\boldsymbol{\tilde{\gamma}}$.
 
-```{r}
+```{r message=FALSE}
 library(forecast) #used for TS regression
 lm_step2 <- tslm(ts(r_t)~ts(ksi)) #without constant
 
@@ -491,7 +491,6 @@ $\boldsymbol{\tilde{\Theta}}$.
 ```{r}
 # we restrict the observed factors to the good time period
 dates_pca <- data$sasdate
-# we drop the first element of res (ar(1) has one obs less)
 indices_dates <- dates_pca>="1963-07-01" & dates_pca<= "2019-12-01"
 
 # residuals of the VAR(1)
@@ -502,8 +501,9 @@ theta_conv <- t(coefficients(lm_factors_conv))
 theta_conv <- theta_conv[,-1]
 ```
 
-The three-pass estimator of $\boldsymbol\gamma_g$ is the product of the estimates of
-$\boldsymbol{\tilde{\Theta}}$ and $\boldsymbol{\tilde{\gamma}}$.
+The three-pass estimator of $\boldsymbol\gamma_g$ is the product of the
+estimates of $\boldsymbol{\tilde{\Theta}}$ and
+$\boldsymbol{\tilde{\gamma}}$.
 
 ```{r}
 gamma_g_conv <- theta_conv %*% gamma
@@ -516,15 +516,18 @@ $\hat{\gamma_g}$. This cannot be obtained easily, since $\hat{\gamma_g}$
 is the product of two estimators ($\hat{\Theta}$ and $\hat{\gamma}$).
 The original paper does not explain how the t-stat are computed.
 Therefore, we had to use the cited paper of Giglio and Xiu to implement
-the computation of the $t_{stat}$. They found an asymptotic estimator of the
-Covariance matrix, which can be estimated with the following:
+the computation of the $t_{stat}$. They found an asymptotic estimator of
+the Covariance matrix, which can be estimated with the following:
 
 $$\hat{Cov(\hat{\gamma_g})} = Mat. \hat{\Pi}_{11}.Mat^T + Mat.\hat{\Pi}_{12}.\hat{\Theta}^T + \hat{\Theta}.\hat{\Pi}_{21}.Mat^T + \hat{\Theta}.\hat{\Pi}_{22}.\hat{\Theta}^T$$
-Where, if we define by $\tilde{\xi}$ the matrix storing every $\boldsymbol{\tilde{\xi_t}}$ for $0 < t < T+1 $, we get 
+Where, if we define by $\tilde{\xi}$ the matrix storing every
+$\boldsymbol{\tilde{\xi_t}}$ for $0 < t < T+1$, we get
 $\hat{\Sigma}^v = \boldsymbol{\tilde\xi} \boldsymbol{\tilde\xi}^T$ and
 $Mat^T = (\hat{\gamma}^T . (\hat{\Sigma}^v)^{-1} \otimes I_d)$
 
-Here, $\hat{\Pi}_{11}$, $\hat{\Pi}_{12}$, $\hat{\Pi}_{21}$ and $\hat{\Pi}_{22}$ are the HAC estimators of Newey and West (1987). They can account for heterogeneity and autocorrelation standard error.
+Here, $\hat{\Pi}_{11}$, $\hat{\Pi}_{12}$, $\hat{\Pi}_{21}$ and
+$\hat{\Pi}_{22}$ are the HAC estimators of Newey and West (1987). They
+can account for heterogeneity and autocorrelation standard error.
 
 The common libraries used to calculate it do not work here, so we had to
 calculate them by ourselves, using the definitions given in the paper.
@@ -621,7 +624,9 @@ quite close to the results of the original article, regarding the
 $R_g^2$. We find that none of the conventional PCs generates a
 significant risk premium at the 90%-level, while the original article
 only finds a significant risk premium for the PC8. Our estimates of
-$\hat{\gamma_g}$ are however quite far from theirs. But since we know we do not have the same PCA as we've seen, although there have the same magnitude, except for the component.
+$\hat{\gamma_g}$ are however quite far from theirs. But since we know we
+do not have the same PCA as we've seen, although there have the same
+magnitude, except for the component.
 
 ```{r}
 df <- data.frame(Factor = paste0("PC",1:9),
@@ -858,24 +863,34 @@ macro variables which explain the largest part of the total variation of
 the dataset. Using the three-pass methodology on 9 factors, we find that
 4 out of 9 generate a significant risk premia (at the 95% level).
 
-## Overcome the linearity in the modelisation
+## Overcoming the linearity in the modelisation
 
 ***What happens if we get rid of the linearity assumption?***
 
 The model adopted in the paper, leading to the three-steps methodology,
 is based on two equations:
-$\boldsymbol{r_t} = \beta'.\boldsymbol{\gamma} + \beta'.\boldsymbol{\xi_t} + \boldsymbol{\epsilon_t}, (1)$ giving
+$\boldsymbol{r_t} = \beta'.\boldsymbol{\gamma} + \beta'.\boldsymbol{\xi_t} + \boldsymbol{\epsilon_t}, (1)$
+giving
 $\boldsymbol{r_t} = \tilde{\beta}'\boldsymbol{\tilde{\gamma}} + \tilde\beta'\boldsymbol{\tilde\xi_t} + \boldsymbol{\epsilon_t}, (1bis)$
-and $\boldsymbol{\bar{g_t}} = \Theta'.\boldsymbol{\xi_t} + \boldsymbol{\zeta_t}, (2)$ giving
+and
+$\boldsymbol{\bar{g_t}} = \Theta'.\boldsymbol{\xi_t} + \boldsymbol{\zeta_t}, (2)$
+giving
 $\boldsymbol{\bar{g_t}} = \tilde{\Theta}'\boldsymbol{\tilde\xi_t} + \zeta_t, (2bis)$,
-where $\boldsymbol{\bar{g_t}} = \boldsymbol{g_t} - \boldsymbol{\delta}$. The meaning of the first equation is simply that we extracted a new base $(\boldsymbol{\tilde\xi_t})_{t<T+1}$ with a PCA on the $(r_t)_{i}$, and now we express the $(r_t)_i$ in the firsts components of this regression.
+where $\boldsymbol{\bar{g_t}} = \boldsymbol{g_t} - \boldsymbol{\delta}$.
+The meaning of the first equation is simply that we extracted a new base
+$(\boldsymbol{\tilde\xi_t})_{t<T+1}$ with a PCA on the $(r_t)_{i}$, and
+now we express the $(r_t)_i$ in the firsts components of this
+regression.
 
 But the idea of the second regression is way more questionable: we aim
 to express the observable factors $(g_t)_i$ in the base
-$(\boldsymbol{\tilde\xi_t})_{t<T+1}$. $\Theta$ is then the base change matrix. But
-this has nothing evident: it only makes sense if we consider, either that the $(g_t)_i$ are very closed to each other, either that the
-"true" function linking the $(g_t)_i$ with the excess returns $(r_t)_t$
-is linear (insofar as the base $(\boldsymbol{\tilde\xi_t})_{t<T+1}$ is built on linear combinations of $(r_t)_i$).
+$(\boldsymbol{\tilde\xi_t})_{t<T+1}$. $\Theta$ is then the base change
+matrix. But this has nothing evident: it only makes sense if we
+consider, either that the $(g_t)_i$ are very closed to each other,
+either that the "true" function linking the $(g_t)_i$ with the excess
+returns $(r_t)_t$ is linear (insofar as the base
+$(\boldsymbol{\tilde\xi_t})_{t<T+1}$ is built on linear combinations of
+$(r_t)_i$).
 
 Therefore, we now develop a non linear approach to link $(g_t)_i$ and
 $(r_t)_i$. In the three-steps methodology, for identification issues, we
@@ -885,7 +900,9 @@ linear transformation of the true unobserved fundamental factors.
 Since we do not have a lot of data at our disposal, we should keep using
 the few vectors of the base $\boldsymbol{\tilde\xi_t}$ instead of the
 many vectors of $(r_t)_i$ to help our model to converge quickly. We can
-write the new equation $(2')$ this way: $\boldsymbol{\bar{g_t}} = \mathcal{F}(\boldsymbol{\xi_t}) + \boldsymbol{z^*_t}$ with $\boldsymbol{z^*_t}$ the new residual.
+write the new equation $(2')$ this way:
+$\boldsymbol{\bar{g_t}} = \mathcal{F}(\boldsymbol{\xi_t}) + \boldsymbol{z^*_t}$
+with $\boldsymbol{z^*_t}$ the new residual.
 
 This leads to the equation we will use:
 $$\boldsymbol{\bar{g_t}} = \tilde{\mathcal{F}}(\boldsymbol{\tilde{\xi_t}}) + \boldsymbol{z^*_t} (2bis')$$
@@ -903,8 +920,7 @@ multidimensional. That is why we choose the Vector Generalized Additive
 Model (VGAM).
 
 We can then add a fourth step to the three-steps methodology, namely:
-"Train a VAGM function on
-$(\boldsymbol{\bar{g_t}})_{t}$ and
+"Train a VAGM function on $(\boldsymbol{\bar{g_t}})_{t}$ and
 $(\boldsymbol{\tilde\xi_t})_{t}$ to obtain
 $\hat{\tilde{\mathcal{F}}} = \mathcal{F}_{VGAM}$".
 
@@ -915,9 +931,11 @@ it.
 
 We ran two differents regressions, a "smooth" one and a "non-smooth"
 one. With the smooth regression, we authorize interpolation of degree 4
-(the default value if we authorize it) on each $(\tilde{\xi_t}_i)_{t<T+1}$, whereas we do not authorize it in the non-smooth one.
+(the default value if we authorize it) on each
+$(\tilde{\xi_t}_i)_{t<T+1}$, whereas we do not authorize it in the
+non-smooth one.
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 library(VGAM)
 res <- data.frame(gt=g_t_conv, ksi=ksi)
 gamma_df <- data.frame(t(gamma))
@@ -943,13 +961,18 @@ gamma_g_conv_VGAM <- as.matrix(predict(gam, gamma_df, type="response"))
 ```
 
 This non-linear method results in estimates of $\gamma_g$ which are
-close to the ones we obtained with the previous three-steps methodology, specially in the non-smooth regression. It enforces us in the idea that this method can work, although we don't have a lot of data to train our VGAM (T=678).
+close to the ones we obtained with the previous three-steps methodology,
+specially in the non-smooth regression. It enforces us in the idea that
+this method can work, although we don't have a lot of data to train our
+VGAM (T=678).
 
 Evaluating the efficiency of our new algorithm is more difficult. We
-cannot express the $t_{stat}$ as previously, because the formula we used for the covariances worked only under linearity assumptions. We could
+cannot express the $t_{stat}$ as previously, because the formula we used
+for the covariances worked only under linearity assumptions. We could
 lineralise our $\hat{\mathcal{F}}_{VGAM}$ to obtain an estimate of
 $\hat{\tilde{\Theta}}$ and re-use the formula, but it would not be very
-precise. And since $\gamma_g$ is a product of estimates, it seems that we cannot obtain an easy estimate of the $t_{stat}$ this time.
+precise. And since $\gamma_g$ is a product of estimates, it seems that
+we cannot obtain an easy estimate of the $t_{stat}$ this time.
 
 However, we can assess the efficiency of this new method in the third
 step by looking at the mean squared residuals on each dimension. The
@@ -958,7 +981,13 @@ as in the original three-step methodology, while the ones of the smooth
 VGAM regression are smaller. The smooth VGAM regression therefore
 appears to be a great improvement.
 
-However, we have to note that VGAM, especially smooth VGAM, are subject to overfitting, due to the high number of parameters they use and the little amount of data we have. Therefore, the good MSR we obtain with the smooth VGAM can either express a truth: the model is non linear and we need to smooth the VGAM. Or it can just be overfitting. To solve this, we could try some cross-validation, but we already have very few data at our disposal. 
+However, we have to note that VGAM, especially smooth VGAM, are subject
+to overfitting, due to the high number of parameters they use and the
+little amount of data we have. Therefore, the good MSR we obtain with
+the smooth VGAM can either express a truth: the model is non linear and
+we need to smooth the VGAM. Or it can just be overfitting. To solve
+this, we could try some cross-validation, but we already have very few
+data at our disposal.
 
 ```{r}
 MeanR2_VGAM_smooth <- colMeans(resid(gam_smooth)[,2*c(1:9)-1]**2)
@@ -971,11 +1000,14 @@ df <- data.frame(gamma_1 = round(gamma_g_conv,2), MR2_1 = round(MeanR2_old,2),
                  gamma_3 = round(gamma_g_conv_VGAM_smooth,2), 
                  MR2_3 = round(MeanR2_VGAM_smooth,2))
 
-kable(df, caption = "Comparaison of the differents methods for the third-step, with the Conventional PCA. 1: 3-step methodology, 2: Not-smooth VGAM, 3: smooth VGAM, gamma: gamma_g, MR2: Mean Square Error", row.names = F)
+kable(df, caption = "Comparaison of the differents methods for the third-step, 
+      with the Conventional PCA. 1: 3-step methodology, 2: Not-smooth VGAM, 
+      3: smooth VGAM, gamma: gamma_g, MR2: Mean Square Error", row.names = F)
 ```
 
 We also apply this extension to the sparse PCA. Once again, we see that
-our smooth VGAM method performs better in term of MSR, when the not-smooth VGAM method gives almost the same result as the original
+our smooth VGAM method performs better in term of MSR, when the
+not-smooth VGAM method gives almost the same result as the original
 three-step methodology.
 
 ```{r}
@@ -1012,7 +1044,9 @@ df <- data.frame(gamma_1 = round(gamma_g_sparse,2),
                  gamma_3 = round(gamma_g_sparse_VGAM_smooth,2), 
                  MR2_3 = round(MeanR2_VGAM_smooth,2))
 
-kable(df, caption = "Comparaison of the differents methods for the third-step, with the Sparse PCA. 1: 3-step methodology, 2: Not-smooth VGAM, 3: smooth VGAM, gamma: gamma_g, MR2: Mean Square Error", row.names = F)
+kable(df, caption = "Comparaison of the differents methods for the third-step, 
+      with the Sparse PCA. 1: 3-step methodology, 2: Not-smooth VGAM, 
+      3: smooth VGAM, gamma: gamma_g, MR2: Mean Square Error", row.names = F)
 ```
 
 # Conclusion
