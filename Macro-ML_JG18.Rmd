@@ -513,14 +513,14 @@ gamma_g_conv <- theta_conv %*% gamma
 
 In order to calculate the $t_{stat}$, we need the Covariance matrix of
 $\hat{\gamma_g}$. This cannot be obtained easily, since $\hat{\gamma_g}$
-is the product of two estimators ($\hat{\Theta}$ and $\hat{\gamma}$).
+is the product of two estimators ($\hat{\Theta}$ and $\boldsymbol{\hat{\gamma}}$).
 The original paper does not explain how the t-stat are computed.
 Therefore, we had to use the cited paper of Giglio and Xiu to implement
 the computation of the $t_{stat}$. They found an asymptotic estimator of
 the Covariance matrix, which can be estimated with the following:
 
 $$\hat{Cov(\hat{\gamma_g})} = Mat. \hat{\Pi}_{11}.Mat^T + Mat.\hat{\Pi}_{12}.\hat{\Theta}^T + \hat{\Theta}.\hat{\Pi}_{21}.Mat^T + \hat{\Theta}.\hat{\Pi}_{22}.\hat{\Theta}^T$$
-Where, if we define by $\tilde{\xi}$ the matrix storing every
+Where, if we define by $\boldsymbol{\tilde{\xi}}$ the matrix storing every
 $\boldsymbol{\tilde{\xi_t}}$ for $0 < t < T+1$, we get
 $\hat{\Sigma}^v = \boldsymbol{\tilde\xi} \boldsymbol{\tilde\xi}^T$ and
 $Mat^T = (\hat{\gamma}^T . (\hat{\Sigma}^v)^{-1} \otimes I_d)$
@@ -624,9 +624,9 @@ quite close to the results of the original article, regarding the
 $R_g^2$. We find that none of the conventional PCs generates a
 significant risk premium at the 90%-level, while the original article
 only finds a significant risk premium for the PC8. Our estimates of
-$\hat{\gamma_g}$ are however quite far from theirs. But since we know we
-do not have the same PCA as we've seen, although there have the same
-magnitude, except for the component.
+$\hat{\gamma_g}$ are however quite far from theirs. But this can be
+explained by the fact that we don't have the same PCA as the paper does.
+Moreover, except for the first component, the magnitudes are comparable.
 
 ```{r}
 df <- data.frame(Factor = paste0("PC",1:9),
@@ -921,7 +921,7 @@ Model (VGAM).
 
 We can then add a fourth step to the three-steps methodology, namely:
 "Train a VAGM function on $(\boldsymbol{\bar{g_t}})_{t}$ and
-$(\boldsymbol{\tilde\xi_t})_{t}$ to obtain
+$(\boldsymbol{\tilde\xi_t})_{t<T+1}$ to obtain
 $\hat{\tilde{\mathcal{F}}} = \mathcal{F}_{VGAM}$".
 
 Since our data can take negative values, we had to choose a family of
@@ -969,7 +969,7 @@ VGAM (T=678).
 Evaluating the efficiency of our new algorithm is more difficult. We
 cannot express the $t_{stat}$ as previously, because the formula we used
 for the covariances worked only under linearity assumptions. We could
-lineralise our $\hat{\mathcal{F}}_{VGAM}$ to obtain an estimate of
+lineralise our $\mathcal{F}_{VGAM}$ to obtain an estimate of
 $\hat{\tilde{\Theta}}$ and re-use the formula, but it would not be very
 precise. And since $\gamma_g$ is a product of estimates, it seems that
 we cannot obtain an easy estimate of the $t_{stat}$ this time.
@@ -983,9 +983,9 @@ appears to be a great improvement.
 
 However, we have to note that VGAM, especially smooth VGAM, are subject
 to overfitting, due to the high number of parameters they use and the
-little amount of data we have. Therefore, the good MSR we obtain with
+little amount of data we have. Therefore, the "good" MSR we obtained with
 the smooth VGAM can either express a truth: the model is non linear and
-we need to smooth the VGAM. Or it can just be overfitting. To solve
+we need to smooth the VGAM. Or it can just be overfitting. To prevent
 this, we could try some cross-validation, but we already have very few
 data at our disposal.
 
