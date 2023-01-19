@@ -282,7 +282,7 @@ Looking at the active weights, we can try to give an economic
 interpretation to the sparse PCs. In the table below, we indicate the
 macro variables whose weights are active in the computation of each
 sparse PC. The weights that we computed do not exactly match those
-presented in ***Table 3*** of the original article. Nevertheles, based
+presented in ***Table 3*** of the original article. Nevertheless, based
 on the table below, we can give our sparse PC the same interpretation as
 Rapach and Zhou, except for the ninth component. For the latter, the
 weights of the ninth component diverge too much from those of the
@@ -403,10 +403,10 @@ rotated fundamental factors (denoted `ksi`)
 The last step is to run a time-series regression of the observed factors
 on the rotated fundamental factors.
 
-Importation of asset returns
 
+First, we import the asset return
 ```{r}
-R <- readRDS("data/portfolios.rds")
+R <- readRDS("data/portfolios.rds") 
 R <- filter(R, date<='2019-12-01')
 dates <- R$date
 R<-dplyr::select(R,-1)
@@ -502,7 +502,7 @@ theta_conv <- t(coefficients(lm_factors_conv))
 theta_conv <- theta_conv[,-1]
 ```
 
-The three-pass estimator of $\boldsymbol\gamma_g$ is the product of
+The three-pass estimator of $\boldsymbol\gamma_g$ is the product of the estimates of
 $\boldsymbol{\tilde{\Theta}}$ and $\boldsymbol{\tilde{\gamma}}$.
 
 ```{r}
@@ -516,18 +516,15 @@ $\hat{\gamma_g}$. This cannot be obtained easily, since $\hat{\gamma_g}$
 is the product of two estimators ($\hat{\Theta}$ and $\hat{\gamma}$).
 The original paper does not explain how the t-stat are computed.
 Therefore, we had to use the cited paper of Giglio and Xiu to implement
-the computation of the t-stat. They found an asymptotic estimator of the
+the computation of the $t_{stat}$. They found an asymptotic estimator of the
 Covariance matrix, which can be estimated with the following:
 
 $$\hat{Cov(\hat{\gamma_g})} = Mat. \hat{\Pi}_{11}.Mat^T + Mat.\hat{\Pi}_{12}.\hat{\Theta}^T + \hat{\Theta}.\hat{\Pi}_{21}.Mat^T + \hat{\Theta}.\hat{\Pi}_{22}.\hat{\Theta}^T$$
-Where
-$\hat{\Sigma}^v = \boldsymbol{\tilde\xi_t} \boldsymbol{\tilde\xi_t}$ and
+Where, if we define by $\tilde{\xi}$ the matrix storing every $\boldsymbol{\tilde{\xi_t}}$ for $0 < t < T+1 $, we get 
+$\hat{\Sigma}^v = \boldsymbol{\tilde\xi} \boldsymbol{\tilde\xi}^T$ and
 $Mat^T = (\hat{\gamma}^T . (\hat{\Sigma}^v)^{-1} \otimes I_d)$
 
-Here, $\hat{\Pi}_{21} = \hat{\Pi}_{12}^T$, and $\hat{\Pi}_{11}$,
-$\hat{\Pi}_{12}$ and $\hat{\Pi}_{22}$ are the HAC estimators of Newey
-and West (1987). They can account for heterogeneity and autocorrelation
-standard error.
+Here, $\hat{\Pi}_{11}$, $\hat{\Pi}_{12}$, $\hat{\Pi}_{21}$ and $\hat{\Pi}_{22}$ are the HAC estimators of Newey and West (1987). They can account for heterogeneity and autocorrelation standard error.
 
 The common libraries used to calculate it do not work here, so we had to
 calculate them by ourselves, using the definitions given in the paper.
@@ -624,7 +621,7 @@ quite close to the results of the original article, regarding the
 $R_g^2$. We find that none of the conventional PCs generates a
 significant risk premium at the 90%-level, while the original article
 only finds a significant risk premium for the PC8. Our estimates of
-$\hat{\gamma_g}$ are however quite far from theirs.
+$\hat{\gamma_g}$ are however quite far from theirs. But since we know we do not have the same PCA as we've seen, although there have the same magnitude, except for the component.
 
 ```{r}
 df <- data.frame(Factor = paste0("PC",1:9),
@@ -867,23 +864,18 @@ the dataset. Using the three-pass methodology on 9 factors, we find that
 
 The model adopted in the paper, leading to the three-steps methodology,
 is based on two equations:
-$r_t = \beta'.\gamma + \beta'.\xi_t + \epsilon_t, (1)$ giving
-$r_t = \tilde{\beta}'\tilde{\gamma} + \tilde\beta'\boldsymbol{\tilde\xi_t} + \epsilon_t, (1bis)$
-and $\bar{g_t} = \Theta'.\xi_t + \zeta_t, (2)$ giving
-$\bar{g_t} = \tilde{\Theta}'\boldsymbol{\tilde\xi_t} + \zeta_t, (2bis)$,
-where $\bar{g_t} = g_t - \delta$. The meaning of the first equation is
-simply that we extracted a new base $\boldsymbol{\tilde\xi_t}$ with a
-PCA on the $(r_t)_{i}$, and now we express the $(r_t)_i$ in the firsts
-components of this regression.
+$\boldsymbol{r_t} = \beta'.\boldsymbol{\gamma} + \beta'.\boldsymbol{\xi_t} + \boldsymbol{\epsilon_t}, (1)$ giving
+$\boldsymbol{r_t} = \tilde{\beta}'\boldsymbol{\tilde{\gamma}} + \tilde\beta'\boldsymbol{\tilde\xi_t} + \boldsymbol{\epsilon_t}, (1bis)$
+and $\boldsymbol{\bar{g_t}} = \Theta'.\boldsymbol{\xi_t} + \boldsymbol{\zeta_t}, (2)$ giving
+$\boldsymbol{\bar{g_t}} = \tilde{\Theta}'\boldsymbol{\tilde\xi_t} + \zeta_t, (2bis)$,
+where $\boldsymbol{\bar{g_t}} = \boldsymbol{g_t} - \boldsymbol{\delta}$. The meaning of the first equation is simply that we extracted a new base $(\boldsymbol{\tilde\xi_t})_{t<T+1}$ with a PCA on the $(r_t)_{i}$, and now we express the $(r_t)_i$ in the firsts components of this regression.
 
 But the idea of the second regression is way more questionable: we aim
 to express the observable factors $(g_t)_i$ in the base
-$\boldsymbol{\tilde\xi_t}$. $\Theta$ is then the base change matrix. But
-this has nothing evident: it only makes sense if we consider, either
-that the $(g_t)_i$ are very closed from one another, either that the
+$(\boldsymbol{\tilde\xi_t})_{t<T+1}$. $\Theta$ is then the base change matrix. But
+this has nothing evident: it only makes sense if we consider, either that the $(g_t)_i$ are very closed to each other, either that the
 "true" function linking the $(g_t)_i$ with the excess returns $(r_t)_t$
-is linear (insofar as the base $\boldsymbol{\tilde\xi_t}$ is built on
-linear combinations of $(r_t)_i$).
+is linear (insofar as the base $(\boldsymbol{\tilde\xi_t})_{t<T+1}$ is built on linear combinations of $(r_t)_i$).
 
 Therefore, we now develop a non linear approach to link $(g_t)_i$ and
 $(r_t)_i$. In the three-steps methodology, for identification issues, we
@@ -893,13 +885,13 @@ linear transformation of the true unobserved fundamental factors.
 Since we do not have a lot of data at our disposal, we should keep using
 the few vectors of the base $\boldsymbol{\tilde\xi_t}$ instead of the
 many vectors of $(r_t)_i$ to help our model to converge quickly. We can
-write the new equation $(2')$ this way:
-$\bar{g_t} = \mathcal{F}(\xi_t) + z^*_t$ with $z^*_t$ the new residual.
+write the new equation $(2')$ this way: $\boldsymbol{\bar{g_t}} = \mathcal{F}(\boldsymbol{\xi_t}) + \boldsymbol{z^*_t}$ with $\boldsymbol{z^*_t}$ the new residual.
+
 This leads to the equation we will use:
-$$\bar{g_t} = \tilde{\mathcal{F}}(\tilde{\xi_t}) + z^*_t (2bis')$$
+$$\boldsymbol{\bar{g_t}} = \tilde{\mathcal{F}}(\boldsymbol{\tilde{\xi_t}}) + \boldsymbol{z^*_t} (2bis')$$
 
 In this new model, the desired $\gamma_g$ is now equal to
-$\bar{\gamma_g} = \tilde{\mathcal{F}}(\tilde{\gamma})$.
+$\gamma_g = \tilde{\mathcal{F}}(\boldsymbol{\tilde{\gamma}})$.
 
 In this precise case, we obviously have no preferred model relating our
 observable $(g_t)_i$ to $(r_t)_i$. Therefore we cannot really choose a
@@ -912,8 +904,8 @@ Model (VGAM).
 
 We can then add a fourth step to the three-steps methodology, namely:
 "Train a VAGM function on
-$\boldsymbol g_t - \tilde{\Theta}'\boldsymbol{\tilde\xi_t}$ and
-$\boldsymbol{\tilde\xi_t}$ to obtain
+$(\boldsymbol{\bar{g_t}})_{t}$ and
+$(\boldsymbol{\tilde\xi_t})_{t}$ to obtain
 $\hat{\tilde{\mathcal{F}}} = \mathcal{F}_{VGAM}$".
 
 Since our data can take negative values, we had to choose a family of
@@ -923,8 +915,7 @@ it.
 
 We ran two differents regressions, a "smooth" one and a "non-smooth"
 one. With the smooth regression, we authorize interpolation of degree 4
-(the default value if we authorize it) on each $\tilde{\xi_t}$, whereas
-we do not authorize it in the non-smooth one.
+(the default value if we authorize it) on each $(\tilde{\xi_t}_i)_{t<T+1}$, whereas we do not authorize it in the non-smooth one.
 
 ```{r}
 library(VGAM)
@@ -952,25 +943,22 @@ gamma_g_conv_VGAM <- as.matrix(predict(gam, gamma_df, type="response"))
 ```
 
 This non-linear method results in estimates of $\gamma_g$ which are
-close to the ones of the original article, and to the ones we computed
-in the previous sections, specially in the non-smooth regression. It
-enforces us in the idea that this method can work, although we don't
-have a lot of data to train our VGAM (T=678).
+close to the ones we obtained with the previous three-steps methodology, specially in the non-smooth regression. It enforces us in the idea that this method can work, although we don't have a lot of data to train our VGAM (T=678).
 
 Evaluating the efficiency of our new algorithm is more difficult. We
-cannot express the t-stat as previously, because the formula we used for
-the covariances worked only under linearity assumptions. We could
+cannot express the $t_{stat}$ as previously, because the formula we used for the covariances worked only under linearity assumptions. We could
 lineralise our $\hat{\mathcal{F}}_{VGAM}$ to obtain an estimate of
 $\hat{\tilde{\Theta}}$ and re-use the formula, but it would not be very
-precise. And since $\gamma_g$ is a product, it seems that we cannot
-obtain an easy estimate of the t-stat this time.
+precise. And since $\gamma_g$ is a product of estimates, it seems that we cannot obtain an easy estimate of the $t_{stat}$ this time.
 
 However, we can assess the efficiency of this new method in the third
 step by looking at the mean squared residuals on each dimension. The
 results make it clear that the MSR of the non-smooth VGAM are the same
-as in the original three-step meyhodology, while the ones of the smooth
+as in the original three-step methodology, while the ones of the smooth
 VGAM regression are smaller. The smooth VGAM regression therefore
 appears to be a great improvement.
+
+However, we have to note that VGAM, especially smooth VGAM, are subject to overfitting, due to the high number of parameters they use and the little amount of data we have. Therefore, the good MSR we obtain with the smooth VGAM can either express a truth: the model is non linear and we need to smooth the VGAM. Or it can just be overfitting. To solve this, we could try some cross-validation, but we already have very few data at our disposal. 
 
 ```{r}
 MeanR2_VGAM_smooth <- colMeans(resid(gam_smooth)[,2*c(1:9)-1]**2)
@@ -986,9 +974,8 @@ df <- data.frame(gamma_1 = round(gamma_g_conv,2), MR2_1 = round(MeanR2_old,2),
 kable(df, caption = "Comparaison of the differents methods for the third-step, with the Conventional PCA. 1: 3-step methodology, 2: Not-smooth VGAM, 3: smooth VGAM, gamma: gamma_g, MR2: Mean Square Error", row.names = F)
 ```
 
-We also apply this extension to the sparse PCA.Once again, we see that
-our smooth VGAM method performs better in term of MSR, when the
-not-smooth VGAM method gives almost the same result as the original
+We also apply this extension to the sparse PCA. Once again, we see that
+our smooth VGAM method performs better in term of MSR, when the not-smooth VGAM method gives almost the same result as the original
 three-step methodology.
 
 ```{r}
